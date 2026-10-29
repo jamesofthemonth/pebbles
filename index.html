@@ -2335,7 +2335,7 @@ function renderStatus(){
     prevSig=sig}
   const actId=c.type==='pebble'?c.p.id:null;if(c.type==='pebble'&&c.p.plan==null&&!isAct(proj(c.p))){c.p.plan=c.p.dur;save()}prevActive=actId;
   const tt=c.type==='pebble'?mmss(left)+' · '+name:c.type==='trans'?mmss(left)+' · transition':'Pebble Planner';if(document.title!==tt)document.title=tt;
-  {const bm=(c.type==='pebble'||c.type==='trans')?Math.max(1,Math.ceil(left/60)):0;if(bm!==lastBadge&&navigator.setAppBadge){lastBadge=bm;try{bm?navigator.setAppBadge(bm):navigator.clearAppBadge()}catch(e){}}}
+  {const bm=(c.type==='pebble'||c.type==='trans')?Math.max(1,Math.ceil(left/60)):0;if(bm>99)bm=0;if(bm!==lastBadge&&navigator.setAppBadge){lastBadge=bm;try{bm?navigator.setAppBadge(bm):navigator.clearAppBadge()}catch(e){}}}
   pipUpdate(c,{label,name,left,total,wrap,brk,phase,phaseBrk});
 }
 /* ---------- mini timer: a small always-on-top window (Chrome / Edge on desktop) ---------- */
