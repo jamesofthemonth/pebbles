@@ -780,6 +780,7 @@ button:disabled{cursor:var(--cur)}
 .pl-act input:focus{outline:none;text-decoration:underline;text-underline-offset:3px}
 .calx{display:flex;gap:8px;margin-top:8px}
 .calx input{flex:1;min-width:0}
+.snote.err{color:var(--red)}
 .calname .err{color:var(--red);font-family:var(--f-mono);font-size:10px;margin-left:6px}
 .cvmode{margin-right:10px}
 .cve{background:none!important;border-left:0!important;padding:0!important;overflow:visible!important}
@@ -860,7 +861,7 @@ button:disabled{cursor:var(--cur)}
 const KINDS={work:{label:'Project',dur:60,pomo:true},break:{label:'Break',dur:15,activity:true},move:{label:'Exercise',dur:45,activity:true}};
 const PROJ_KINDS=['work'];
 const DEFSET={weekStart:1,h24:false,dayStart:7,dayEnd:21,workLen:60,tShort:5,tLong:10,tThresh:60,autoTrans:true,wrap:5,pomoF:25,pomoB:5,theme:'system',brk:'cyan',sig:'red',grid:true,
-  snd:{on:true,vol:.6,start:'deep-chime',wrap:'futuristic-beep',brk:'glass-ping',trans:'pop-up-open',end:'mission-complete',tick:'none'},cals:{},extraCals:[]};
+  snd:{on:true,vol:.6,start:'deep-chime',wrap:'futuristic-beep',brk:'glass-ping',trans:'pop-up-open',end:'mission-complete',tick:'none'},cals:{},extraCals:[],calUrl:'',calKey:''};
 const ST=()=>S.settings;
 const BRK={cyan:'#14C8FF',blue:'#3A7BFF',violet:'#9B6BFF',white:'#EDEDEA'},SIG={red:'#E5322D',orange:'#FF6A1F',pink:'#FF2D8A',yellow:'#FFC21A'};
 const CALC=['#8A8A86','#3A7BFF','#9B6BFF','#FF2D8A','#14C8FF','#FF6A1F','#E5322D','#FFC21A'];
@@ -1207,9 +1208,62 @@ $('#alerts').addEventListener('click',e=>{const b=e.target.closest('[data-book]'
 
 /* ---------- Google Calendar preview (read only: the page may only list events) ---------- */
 const STANDALONE=!(window.claude&&typeof window.claude.use==='function');
-let mcpP=null,calOn=!STANDALONE,calData={},calStatus='',calDate=null,calLast=0;
+let mcpP=null,calOn=true,calData={},calStatus='',calDate=null,calLast=0;
 
-function getMcp(){if(!mcpP)mcpP=(window.claude&&typeof window.claude.use==='function')?window.claude.use('mcp').catch(()=>null):Promise.resolve(null);return mcpP}
+function getMcp(){if(STANDALONE)return Promise.resolve(linkMcp());if(!mcpP)mcpP=(window.claude&&typeof window.claude.use==='function')?window.claude.use('mcp').catch(()=>null):Promise.resolve(null);return mcpP}
+
+/* Standalone: calendar comes from a small Google Apps Script the user deploys in their own account (read only). */
+function calKey(){const st=ST();if(!st.calKey){const a=new Uint8Array(16);crypto.getRandomValues(a);st.calKey=Array.from(a,b=>b.toString(16).padStart(2,'0')).join('');save()}return st.calKey}
+let linkM=null,linkK='';
+function linkMcp(){const st=ST();if(!st.calUrl)return null;const k=st.calUrl+'|'+st.calKey;if(linkM&&linkK===k)return linkM;linkK=k;
+  const get=async q=>{const u=st.calUrl+(st.calUrl.includes('?')?'&':'?')+'key='+encodeURIComponent(calKey())+'&'+q;let r;
+    try{r=await fetch(u,{redirect:'follow',cache:'no-store'})}catch(e){throw {code:'net',retryable:true}}
+    if(!r.ok)throw {code:r.status===404?'badlink':'net',retryable:r.status>=500};let j;try{j=await r.json()}catch(e){throw {code:'badlink'}}
+    if(j&&j.error)throw {code:j.error==='key'?'badkey':'net'};return j};
+  const rng={};
+  linkM={callTool:async(srv,tool,args,o)=>{
+    if(tool==='list_calendars'){const j=await get('a=cals');return {payload:{calendars:j.calendars||[]}}}
+    if(tool==='list_events'){const f=new Date(args.startTime).getTime(),t=new Date(args.endTime).getTime(),rk=f+'-'+t,force=o&&o.cache&&o.cache.refresh,c=rng[rk],age=c?Date.now()-c.at:1e9;
+      if(!c||age>120000||(force&&age>5000))rng[rk]={at:Date.now(),p:get('a=events&from='+f+'&to='+t).catch(e=>{delete rng[rk];throw e})};
+      const j=await rng[rk].p;return {payload:{events:(j.events&&j.events[args.calendarId])||[]}}}
+    throw {code:'tool_error'}}};
+  return linkM}
+const gasScript=k=>`// Pebbles calendar reader. It only reads your calendars and never changes them.
+// Deploy: Deploy > New deployment > Web app, Execute as: Me, Who has access: Anyone.
+const KEY = '${k}';
+
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (p.key !== KEY) return out({ error: 'key' });
+  const cals = CalendarApp.getAllCalendars().filter(c => !c.isHidden());
+  if (p.a === 'cals') return out({ calendars: cals.map(c => ({ id: c.getId(), summary: c.getName() })) });
+  const from = new Date(Number(p.from)), to = new Date(Number(p.to));
+  if (isNaN(from) || isNaN(to) || to <= from || to - from > 100 * 864e5) return out({ error: 'range' });
+  const tz = Session.getScriptTimeZone(), events = {};
+  cals.forEach(c => {
+    events[c.getId()] = c.getEvents(from, to).map(ev => {
+      const o = { id: ev.getId(), summary: ev.getTitle(), location: ev.getLocation() };
+      if (ev.isAllDayEvent()) {
+        o.start = { date: Utilities.formatDate(ev.getAllDayStartDate(), tz, 'yyyy-MM-dd') };
+        o.end = { date: Utilities.formatDate(ev.getAllDayEndDate(), tz, 'yyyy-MM-dd') };
+      } else {
+        o.start = { dateTime: ev.getStartTime().toISOString() };
+        o.end = { dateTime: ev.getEndTime().toISOString() };
+      }
+      try { if (ev.getMyStatus() === CalendarApp.GuestStatus.NO) o.attendees = [{ self: true, responseStatus: 'declined' }]; } catch (_) {}
+      try { if (String(ev.getTransparency()) === 'TRANSPARENT') o.transparency = 'transparent'; } catch (_) {}
+      return o;
+    });
+  });
+  return out({ events });
+}
+
+function out(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+`;
+const gasManifest=()=>JSON.stringify({timeZone:(Intl.DateTimeFormat().resolvedOptions().timeZone||'Australia/Melbourne'),exceptionLogging:'STACKDRIVER',runtimeVersion:'V8',oauthScopes:['https://www.googleapis.com/auth/calendar.readonly'],webapp:{executeAs:'USER_DEPLOYING',access:'ANYONE_ANONYMOUS'}},null,2);
+function updCalBtn(){const cb=document.getElementById('calBtn');if(cb)cb.hidden=STANDALONE&&!ST().calUrl}
 let calList=null,calListP=null;const calWeeks={},calBad=new Set();
 async function getCals(force){if(calList&&!force)return calList;if(force)calListP=null;if(!calListP)calListP=(async()=>{const mcp=await getMcp();if(!mcp)return null;
   try{const r=await mcp.callTool('Google Calendar','list_calendars',{},{cache:Object.assign({staleTime:600000,gcTime:3600000},force?{refresh:true}:{})});const cs=(r.payload&&r.payload.calendars)||[];calList=cs.map(c=>({id:c.id,name:c.summary||c.id}));(ST().extraCals||[]).forEach(a=>{if(!calList.some(c=>c.id===a))calList.push({id:a,name:a,extra:true})});return calList}
@@ -1231,20 +1285,20 @@ async function loadRange(start,n,force,isRetry){
   try{
     const cals=await getCals();const use=(cals&&cals.length?cals:[{id:'primary',name:'calendar'}]).map((c,i)=>Object.assign({},c,calCfg(c.id,i))).filter(c=>c.on);
     const opts={cache:Object.assign({staleTime:120000,gcTime:900000},force?{refresh:true}:{})};const okErr=new Set(['not_found','invalid_params','tool_error','forbidden']);
-    const res=await Promise.all(use.map(c=>mcp.callTool('Google Calendar','list_events',{calendarId:c.id,startTime:shift(start,-1)+'T00:00:00',endTime:shift(start,n)+'T23:59:59',orderBy:'startTime',pageSize:250},opts).then(r=>{if(c.extra)calBad.delete(c.id);return {c,evs:(r.payload&&r.payload.events)||[]}}).catch(err=>{if(c.extra||(cals.length>1&&!['needs_reauth','server_not_connected','approval_required','consent_required'].includes(err&&err.code))){calBad.add(c.id);return {c,evs:[]}}throw err})));
+    const res=await Promise.all(use.map(c=>mcp.callTool('Google Calendar','list_events',{calendarId:c.id,startTime:shift(start,-1)+'T00:00:00',endTime:shift(start,n)+'T23:59:59',orderBy:'startTime',pageSize:250},opts).then(r=>{if(c.extra)calBad.delete(c.id);return {c,evs:(r.payload&&r.payload.events)||[]}}).catch(err=>{if(c.extra||(cals.length>1&&!['needs_reauth','server_not_connected','approval_required','consent_required','net','badkey','badlink'].includes(err&&err.code))){calBad.add(c.id);return {c,evs:[]}}throw err})));
     for(let i=0;i<n;i++){const d=shift(start,i),seen=new Set(),out={timed:[],allday:[]};res.forEach(({c,evs})=>parseInto(out,evs,d,c,seen));out.timed.sort((a,b)=>a.s-b.s);calData[d]=out}
     calWeeks[key]=true;calStatus='ok';calLast=Date.now();if(pane==='settings')setTimeout(drawCalSettings,0);
   }catch(err){const c=err&&err.code;
-    if(['needs_reauth','server_not_connected','selection_required','server_not_found'].includes(c))calStatus='connect';
+    if(c==='badkey'||c==='badlink')calStatus='badlink';else if(['needs_reauth','server_not_connected','selection_required','server_not_found'].includes(c))calStatus='connect';
     else if(c==='approval_required'||c==='consent_required')calStatus='approval';
     else if(['not_in_manifest','blocked_by_policy','not_granted','capability_disabled','capability_removed'].includes(c))calStatus='off';
     else{calStatus='error';if(err&&err.retryable&&!isRetry)setTimeout(()=>loadRange(start,n,true,true),(err.retryAfterMs||1500)+Math.random()*1500)}
     if(calStatus!=='error')for(let i=0;i<n;i++)delete calData[shift(start,i)]}
-  renderCalRow();renderTrack();if(pane==='calendar')drawCal();
+  renderCalRow();renderTrack();if(pane==='calendar')drawCal();if(STANDALONE&&pane==='settings')drawCalSettings();
 }
 function loadWeek(ws,force,isRetry){return loadRange(ws,7,force,isRetry)}
 function loadCal(date,force,isRetry){return loadWeek(weekStart(date),force,isRetry)}
-function resetCal(){calList=null;calListP=null;Object.keys(calWeeks).forEach(k=>delete calWeeks[k]);calData={};calDate=null;calVK=null}
+function resetCal(){linkM=null;calList=null;calListP=null;Object.keys(calWeeks).forEach(k=>delete calWeeks[k]);calData={};calDate=null;calVK=null}
 function renderCalRow(){
   const row=$('#calrow');
   if(!calOn){row.hidden=true;return}row.hidden=false;
@@ -1254,6 +1308,7 @@ function renderCalRow(){
     connect:'Reconnect Google Calendar in claude.ai Settings → Connectors.',
     approval:'Allow this page to read your calendar. <button class="pill" id="calAllow">Show calendar</button>',
     off:'Reading your calendar is turned off for this page (Permissions menu).',
+    badlink:'Your calendar link isn’t working. Check it in settings.',
     error:'Couldn’t load your calendar. <button class="pill" id="calRetry">Try again</button>'}[calStatus];
   if(msg)h+=`<span>${msg}</span>`;
   row.innerHTML=h;row.hidden=!(msg||(d&&d.allday.length));
@@ -2173,7 +2228,7 @@ function togRow(label,path){return `<div class="srow"><span>${label}</span><labe
 function sndRow(label,key){return `<div class="srow"><span>${label}</span><div class="sndsel"><select data-snd="${key}" aria-label="${label}">${SOUNDS.map(x=>`<option value="${x}"${ST().snd[key]===x?' selected':''}>${sndLabel(x)}</option>`).join('')}</select><button class="pill" data-play="${key}">play</button></div></div>`}
 function swRow(label,path,map){return `<div class="srow"><span>${label}</span><div class="swatches">${Object.entries(map).map(([k,c])=>`<button data-set="${path}" data-val='"${k}"' style="--c:${c}"${gp(path)===k?' class="on"':''} aria-label="${k}" title="${k}"></button>`).join('')}</div></div>`}
 function renderSettings(){
-  const st=ST(),y=window.scrollY,nav=['general','timing','sounds','appearance'].concat(STANDALONE?[]:['calendars'],['templates','shortcuts','data']);
+  const st=ST(),y=window.scrollY,nav=['general','timing','sounds','appearance'].concat(['calendars'],['templates','shortcuts','data']);
   const tpls=S.templates||[];
   slot.innerHTML=`<section class="setp box" aria-label="Settings"><div class="d-head"><h2>settings</h2><button class="x" id="setClose" aria-label="Close">×</button></div>
   <div class="sgrid"><nav class="snav">${nav.map(n=>`<button data-go="${n}">${n}</button>`).join('')}</nav><div class="sbody" id="sbody">
@@ -2181,7 +2236,7 @@ function renderSettings(){
     <section id="s-timing"><h3>timing</h3>${numRow('new pebble length','workLen',15,240,15,'min')}${togRow('add transitions between work pebbles','autoTrans')}${numRow('short transition','tShort',0,30,5,'min')}${numRow('long transition','tLong',0,60,5,'min')}${numRow('long transition after','tThresh',15,240,15,'min')}${numRow('wrap-up buffer','wrap',0,20,1,'min')}${numRow('pomodoro focus','pomoF',5,90,5,'min')}${numRow('pomodoro break','pomoB',1,30,1,'min')}</section>
     <section id="s-sounds"><h3>sounds</h3>${togRow('sounds on','snd.on')}<div class="srow"><span>volume</span><input type="range" min="0" max="1" step=".05" value="${st.snd.vol}" data-vol aria-label="Volume"></div>${sndRow('pebble starts','start')}${sndRow('wrap it up','wrap')}${sndRow('break starts','brk')}${sndRow('transition starts','trans')}${sndRow('pebble ends','end')}${sndRow('task ticked','tick')}<p class="snote">Sounds by SoundShelf Studio on Pixabay. They play while this page is open.</p></section>
     <section id="s-appearance"><h3>appearance</h3>${segRow('theme','theme',[['system','system'],['light','light'],['dark','dark']])}${swRow('break colour','brk',BRK)}${swRow('signal colour','sig',SIG)}${togRow('dot grid','grid')}</section>
-    ${STANDALONE?'':`<section id="s-calendars"><h3>calendars</h3><div id="calSet"><div class="snote">loading</div></div><form class="calx" id="calAdd"><input id="calAddr" type="email" placeholder="calendar address" aria-label="Add a calendar by address"><button class="pill" type="submit">Add</button></form><div class="links" style="margin-top:6px"><button id="calRefresh">refresh calendar list</button></div><p class="snote">Another account's calendar shows once it's shared with this account in Google Calendar (settings and sharing, share with specific people, see all event details).</p></section>`}
+    ${STANDALONE?`<section id="s-calendars"><h3>calendars</h3><div class="srow"><span>google calendar script</span><div class="links"><button id="gasCopy">copy script</button><button id="gasMan">copy appsscript.json</button></div></div><form class="calx" id="calLink"><input id="calUrlIn" type="url" value="${esc(st.calUrl||'')}" placeholder="web app link" aria-label="Calendar web app link" spellcheck="false"><button class="pill" type="submit">Save</button></form><div id="calSet"></div>${st.calUrl?'<div class="links" style="margin-top:6px"><button id="calRefresh">refresh calendar list</button><button class="danger" id="calUnlink">remove link</button></div>':''}<p class="snote">The script runs in your own Google account and only reads your calendars. Keep the link private.</p></section>`:`<section id="s-calendars"><h3>calendars</h3><div id="calSet"><div class="snote">loading</div></div><form class="calx" id="calAdd"><input id="calAddr" type="email" placeholder="calendar address" aria-label="Add a calendar by address"><button class="pill" type="submit">Add</button></form><div class="links" style="margin-top:6px"><button id="calRefresh">refresh calendar list</button></div><p class="snote">Another account's calendar shows once it's shared with this account in Google Calendar (settings and sharing, share with specific people, see all event details).</p></section>`}
     <section id="s-templates"><h3>day templates</h3>${tpls.length?tpls.map(t=>`<div class="srow"><input class="tname" data-tname="${t.id}" value="${esc(t.name)}" aria-label="Template name"><span class="mono muted">${t.items.length} pebbles</span><button class="gbtn" data-tdel2="${t.id}" aria-label="Delete ${esc(t.name)}">×</button></div>`).join(''):'<div class="snote">none saved</div>'}</section>
     <section id="s-shortcuts"><h3>shortcuts</h3><dl class="sdl">${HELP_ROWS.map(r=>`<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}</dl></section>
     <section id="s-data"><h3>data</h3>${STANDALONE&&window.showDirectoryPicker?`<div class="srow"><span>backup folder</span><div class="links" id="dirRow"><span class="mono muted">checking</span></div></div>`:""}<div class="srow"><span>backup</span><div class="links"><button id="expBtn">export</button><button id="impBtn">import</button></div></div><div class="srow"><span>daily backups</span><div class="links" id="bkList"><span class="mono muted">loading</span></div></div><div class="srow"><span>data version</span><span class="mono muted">${SCHEMA}</span></div>${S.example?'<div class="srow"><span>example data</span><div class="links"><button class="danger" id="freshBtn">clear example data</button></div></div>':''}</section>
@@ -2192,6 +2247,9 @@ function renderSettings(){
   const root=slot.querySelector('.setp');
   {const f=document.getElementById('calAdd');if(f)f.onsubmit=e=>{e.preventDefault();const v=$('#calAddr').value.trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){$('#calAddr').focus();return}
     const x=ST().extraCals;if(!x.includes(v)&&!(calList||[]).some(c=>c.id===v))x.push(v);$('#calAddr').value='';save();resetCal();if(!calOn&&typeof setCalOn==='function')setCalOn(true);renderTrack();drawCalSettings();toast('Added '+v)}}
+  {const f=document.getElementById('calLink');if(f)f.onsubmit=e=>{e.preventDefault();const v=$('#calUrlIn').value.trim();
+    if(v&&!/^https:\/\/script\.google(usercontent)?\.com\//.test(v)){toast('That doesn’t look like an Apps Script web app link');$('#calUrlIn').focus();return}
+    ST().calUrl=v.replace(/[?#].*$/,'');calKey();save();resetCal();updCalBtn();calStatus='';renderSettings();loadCal(viewDate,true);toast(v?'Calendar link saved':'Calendar link removed')}}
   $('#setClose').onclick=()=>openPane('settings');
   root.onclick=e=>{const go=e.target.closest('[data-go]');if(go){document.getElementById('s-'+go.dataset.go).scrollIntoView({behavior:'smooth',block:'start'});return}
     const b=e.target.closest('[data-set]');if(b){sp(b.dataset.set,JSON.parse(b.dataset.val));changedSettings();return}
@@ -2200,6 +2258,8 @@ function renderSettings(){
     const td=e.target.closest('[data-tdel2]');if(td){const t=S.templates.find(x=>x.id===td.dataset.tdel2);confirmPop(td,`Delete the <b>${esc(t.name)}</b> template?`,'Delete',()=>{S.templates=S.templates.filter(x=>x!==t);save();renderSettings()});return}
     const cc=e.target.closest('[data-ccol]');if(cc){const cf=ST().cals[cc.dataset.ccol];cf.c=(cf.c+1)%CALC.length;save();resetCal();renderTrack();drawCalSettings();return}
     const rm=e.target.closest('[data-calrm]');if(rm){ST().extraCals=ST().extraCals.filter(a=>a!==rm.dataset.calrm);delete ST().cals[rm.dataset.calrm];save();resetCal();renderTrack();drawCalSettings();return}
+    const cpy=e.target.closest('#gasCopy,#gasMan');if(cpy){const t=cpy.id==='gasCopy'?gasScript(calKey()):gasManifest();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast(cpy.id==='gasCopy'?'Script copied':'appsscript.json copied'),()=>toast('Couldn’t copy'));return}
+    if(e.target.closest('#calUnlink')){confirmPop(e.target.closest('#calUnlink'),'Remove the calendar link?','Remove',()=>{ST().calUrl='';save();resetCal();calData={};calStatus='';updCalBtn();renderSettings();renderTrack();renderCalRow()});return}
     if(e.target.closest('#calRefresh')){resetCal();getCals(true).then(()=>{drawCalSettings();renderTrack()}).catch(()=>drawCalSettings());toast('Refreshing calendars');return}
     if(e.target.closest('#expBtn'))exportBackup();
     if(e.target.closest('#impBtn'))$('#impFile').click();
@@ -2221,7 +2281,7 @@ async function drawCalSettings(){
   const el=document.getElementById('calSet');if(!el)return;
   let cals=null;try{cals=await getCals()}catch(e){}
   if(!document.getElementById('calSet'))return;
-  if(!cals){el.innerHTML='<div class="snote">Your calendars show here when this page is open in Claude with Google Calendar connected.</div>';return}
+  if(!cals){el.innerHTML=STANDALONE?(ST().calUrl&&calStatus==='badlink'?'<div class="snote err">This link isn’t working. Check it was deployed as a web app with access for anyone, and that the script was copied from this page.</div>':''):'<div class="snote">Your calendars show here when this page is open in Claude with Google Calendar connected.</div>';return}
   el.innerHTML=cals.map((c,i)=>{const cf=calCfg(c.id,i);return `<div class="srow"><span class="calname"><button class="cdot" data-ccol="${esc(c.id)}" style="--c:${CALC[cf.c]}" aria-label="Change colour" title="Change colour"></button>${esc(c.name)}${calBad.has(c.id)?'<span class="err">not shared yet</span>':''}${c.extra?`<button class="gbtn" data-calrm="${esc(c.id)}" aria-label="Remove ${esc(c.name)}">×</button>`:''}</span><label class="switch"><input type="checkbox" data-calon="${esc(c.id)}"${cf.on?' checked':''} aria-label="Show ${esc(c.name)}"></label></div>`}).join('');
 }
 async function exportBackup(){
@@ -2256,7 +2316,7 @@ function renderCalView(){
   if(calVK!==key){calVK=key;loadRange(start,n)}drawCal();
 }
 function drawCal(){if(calMode==='month')drawCalMonth();else drawCalWeek()}
-const calMsg=()=>({none:'Your calendar shows here when this page is open in Claude.',loading:'loading',connect:'Reconnect Google Calendar in claude.ai Settings → Connectors.',approval:'Allow this page to read your calendar.',off:'Reading your calendar is turned off for this page.',error:'Couldn’t load your calendar.'}[calStatus]);
+const calMsg=()=>({none:STANDALONE?'Add your calendar link in settings.':'Your calendar shows here when this page is open in Claude.',badlink:'Your calendar link isn’t working. Check it in settings.',loading:'loading',connect:'Reconnect Google Calendar in claude.ai Settings → Connectors.',approval:'Allow this page to read your calendar.',off:'Reading your calendar is turned off for this page.',error:'Couldn’t load your calendar.'}[calStatus]);
 function drawLegend(){const leg=document.getElementById('cvLegend');if(leg)leg.innerHTML=(calList||[]).map((c,i)=>{const cf=calCfg(c.id,i);return cf.on?`<span><i style="--cc:${CALC[cf.c]}"></i>${esc(c.name)}</span>`:''}).join('')+'<span><i class="pb"></i>pebbles</span>'}
 function drawCalWeek(){
   const g=document.getElementById('cvGrid');if(!g)return;g.className='cvgrid';const ws=weekStart(viewDate),we=shift(ws,6),days=[...Array(7)].map((_,i)=>shift(ws,i));
@@ -2424,7 +2484,7 @@ function toast(msg,undo){let t=document.querySelector('.toast');if(t)t.remove();
 /* ---------- boot ---------- */
 S=loadLocal()||seed();if(S.example&&!DEMO){S=fresh(S);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}syncKinds();viewDate=LIVE().date;[...new Set(S.pebbles.map(p=>p.date))].forEach(reflow);if(prune())try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}lastSnap=snapOf();
 try{const z=parseFloat(localStorage.getItem(KEY+'-z'));if(PPMS.includes(z))ppm=z;else if(innerWidth<600)ppm=PPMS[0]}catch(e){if(innerWidth<600)ppm=PPMS[0]}
-track.classList.add('still');renderAll();renderCalRow();jumpNow(false);setSync('local');initSync();fsInit();{const fb=document.getElementById('fsBannerBtn');if(fb)fb.onclick=fsReconnect}if(STANDALONE){const cb=document.getElementById('calBtn');if(cb)cb.hidden=true}
+track.classList.add('still');renderAll();renderCalRow();jumpNow(false);setSync('local');initSync();fsInit();{const fb=document.getElementById('fsBannerBtn');if(fb)fb.onclick=fsReconnect}updCalBtn();
 requestAnimationFrame(()=>requestAnimationFrame(()=>{track.classList.remove('still');track.dataset.ready='1'}));
 let lastDay=TODAY();
 /* never lose the last edit: write immediately when the page is hidden or closed */
