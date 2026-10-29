@@ -1,4 +1,4 @@
-# Auto update: a new sw.js version is picked up and swapped in when the window is idle/hidden, plan kept.
+# Updates: a new sw.js version shows an update button; clicking it loads the new version, plan kept.
 import asyncio,os,subprocess,time,json,re,shutil,tempfile
 from playwright.async_api import async_playwright
 ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,11 +17,13 @@ async def main():
   h=open(APP+'/index.html').read().replace('</body>','<i id="newver"></i></body>');open(APP+'/index.html','w').write(h)
   w=open(APP+'/sw.js').read();w=re.sub(r"const VERSION='[^']*'","const VERSION='pebbles-test-next'",w);open(APP+'/sw.js','w').write(w)
   await pg.click('#setBtn');await pg.wait_for_timeout(400);await pg.click('#updBtn');await pg.wait_for_timeout(3000)
-  ok(await pg.locator('#newver').count()==0,'does not reload while you are actively using it')
-  # window goes to the background -> update swaps in
-  await pg.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))")
-  await pg.wait_for_timeout(3000)
-  ok(await pg.locator('#newver').count()==1,'new version loaded once the window is in the background')
+  ok(await pg.locator('#newver').count()==0,'does not reload by itself')
+  ok(await pg.locator('#updNow').is_visible(),'update button appears at the top')
+  await pg.click('#setBtn');await pg.evaluate('scrollTo(0,0)');await pg.wait_for_timeout(500)
+  await pg.screenshot(path=os.path.join(ROOT,'tests','shots','update_button.png'),clip={'x':0,'y':0,'width':1280,'height':120})
+  await pg.click('#updNow');await pg.wait_for_timeout(2500)
+  ok(await pg.locator('#newver').count()==1,'clicking it loads the new version')
+  ok(await pg.locator('#updNow').is_hidden(),'button gone after updating')
   st=await pg.evaluate("JSON.parse(localStorage.getItem('pebble-planner-v1'))")
   ok(any(p.get('pid') and st['projects'][p['pid']]['name'].startswith('Keep me') for p in st['pebbles']),'plan kept through the update')
   ok(await pg.evaluate("caches.keys()")==['pebbles-test-next'] or 'pebbles-test-next' in await pg.evaluate("caches.keys()"),'old cache replaced',await pg.evaluate("caches.keys()"))

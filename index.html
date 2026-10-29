@@ -70,6 +70,8 @@ header{display:flex;align-items:baseline;justify-content:space-between;gap:10px 
 nav.top{display:flex;gap:4px;flex-wrap:wrap}
 nav.top button{font-size:15px;padding:4px 10px;border-radius:99px;color:var(--muted);transition:color .15s ease-out,background .15s ease-out}
 nav.top button:hover{color:var(--ink)}
+nav.top button.upd{color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
+nav.top button.upd:hover{color:#fff;background:var(--red)}
 nav.top button.on{color:var(--ink);background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)}
 
 /* now: the black display */
@@ -820,6 +822,7 @@ button:disabled{cursor:var(--cur)}
   <header>
     <h1 class="mark">pebbles<span class="sync" id="syncDot" role="img" aria-label="Saved in this browser" title="Saved in this browser"></span><small id="date"></small></h1>
     <nav class="top" aria-label="Views">
+      <button id="updNow" class="upd" hidden title="A new version of Pebbles is ready">update</button>
       <button id="docBtn">channels</button>
       <button id="calBtn">calendar</button>
       <button id="histBtn">history</button>
@@ -2495,17 +2498,17 @@ setInterval(()=>{if(drag)return;{const ld=LIVE().date;if(ld!==lastDay){const was
   if(calOn&&calStatus==='ok'&&Date.now()-calLast>300000){calLast=Date.now();loadCal(viewDate,true)}
   renderTrack();renderStatus();updatePanelTime();if(new Date().getSeconds()===0)renderAlerts()},1000);
 /* Updates: check quietly for a new version, then swap it in when you're not in the middle of something. */
-let swReg=null,updWaiting=false,lastAct=Date.now();
-['pointerdown','keydown','wheel'].forEach(t=>addEventListener(t,()=>{lastAct=Date.now()},{capture:true,passive:true}));
+let swReg=null,updWaiting=false;
 function busy(){const a=document.activeElement;return !!(drag||pipWin||document.body.classList.contains('marqueeing')||(a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable)))}
-function tryUpdate(){if(!updWaiting)return;if(busy()||(!document.hidden&&Date.now()-lastAct<45000)){setTimeout(tryUpdate,10000);return}
-  try{flushNow()}catch(e){}try{sessionStorage.setItem('pebbles-updated','1')}catch(e){}location.reload()}
+function showUpdate(){const u=document.getElementById('updNow');if(u)u.hidden=!updWaiting}
+function applyUpdate(){if(busy()){toast('Finish what you’re doing, then update');return}try{flushNow()}catch(e){}try{sessionStorage.setItem('pebbles-updated','1')}catch(e){}location.reload()}
+{const u=document.getElementById('updNow');if(u)u.onclick=applyUpdate}
 function checkUpdate(manual){if(!swReg||!navigator.onLine){if(manual)toast(navigator.onLine?'Couldn’t check for updates':'Offline');return}
-  swReg.update().then(()=>{if(manual)toast(swReg.installing||swReg.waiting||updWaiting?'Updating…':'Up to date')}).catch(()=>{if(manual)toast('Couldn’t check for updates')})}
+  swReg.update().then(()=>{if(manual)toast(swReg.installing||swReg.waiting||updWaiting?'Update ready, press update at the top':'Up to date')}).catch(()=>{if(manual)toast('Couldn’t check for updates')})}
 if('serviceWorker' in navigator){let had=!!navigator.serviceWorker.controller;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}updWaiting=true;tryUpdate()});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}updWaiting=true;showUpdate()});
   addEventListener('load',()=>navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;setInterval(()=>checkUpdate(),30*60000);setTimeout(()=>checkUpdate(),5000)}).catch(()=>{}));
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){if(updWaiting)tryUpdate()}else checkUpdate()})}
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdate()})}
 try{if(sessionStorage.getItem('pebbles-updated')){sessionStorage.removeItem('pebbles-updated');setTimeout(()=>toast('Pebbles updated'),800)}}catch(e){}
 })();
 </script>
