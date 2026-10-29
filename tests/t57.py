@@ -20,7 +20,7 @@ async def main():
   await pg2.screenshot(path=os.path.join(ROOT,'tests','shots','fresh.png'))
   # build from nothing: new channel, new project via chip, pebble
   await pg2.locator('#adds [data-addm]').click();await pg2.wait_for_timeout(500);await pg2.keyboard.type('TARRMACstudio');await pg2.keyboard.press('Enter');await pg2.wait_for_timeout(300)
-  await pg2.click('#docClose');await pg2.wait_for_timeout(300);await pg2.locator('#adds .chip[data-gid]').first.click();await pg2.wait_for_timeout(500)
+  await pg2.click('#docClose');await pg2.wait_for_timeout(300);await pg2.locator('#adds .chip[data-gid]').first.click();await pg2.wait_for_timeout(500);await pg2.locator('.chippop button.nw').click();await pg2.wait_for_timeout(400)
   await pg2.fill('#pkFind','Kalorama EOI 90m');await pg2.press('#pkFind','Enter');await pg2.wait_for_timeout(600)
   st=await S.state(pg2);S.check(len(st['groups'])==1 and len(st['pebbles'])==1 and st['pebbles'][0]['dur']==90,'from empty: add a channel, then a 90 min project pebble',(st['groups'],[(p['dur'],st['projects'][p['pid']]['name']) for p in st['pebbles']]))
   await pg2.keyboard.press('n');await pg2.wait_for_timeout(500);S.check(await pg2.locator('#pkFind').count()==1,'N works with one channel')

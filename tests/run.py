@@ -37,7 +37,7 @@ async def main():
   await step('day1 setup',d1())
   async def d1plan():
     # chip: TARRMAC -> picker -> choose Kalorama EOI
-    await pg.locator('#adds .chip[data-gid]').first.click();await pg.wait_for_timeout(500)
+    await pg.locator('#adds .chip[data-gid]').first.click();await pg.wait_for_timeout(500);await pg.locator('.chippop button.nw').click();await pg.wait_for_timeout(400)
     await pg.fill('#pkFind','Kalorama');await pg.press('#pkFind','Enter');await pg.wait_for_timeout(500)
     ps,st=await pebs(pg,'2026-11-02');S.check(len(ps)==1 and pname(st,ps[0])=='Kalorama EOI','channel chip + picker books the project',[pname(st,p) for p in ps])
     S.check(ps and ps[0]['start']==8*60+45,'first pebble starts at the next 5 minutes from now (8:45)',ps[0]['start'] if ps else None)
@@ -46,7 +46,7 @@ async def main():
     await pg.check('#pnPomo');await pg.wait_for_timeout(200)
     # break, then Jon call (new project in picker), exercise
     await pg.locator('#adds .chip[data-kind="break"]').click();await pg.wait_for_timeout(500)
-    await pg.locator('#adds .chip[data-gid]').nth(1).click();await pg.wait_for_timeout(500)
+    await pg.locator('#adds .chip[data-gid]').nth(1).click();await pg.wait_for_timeout(500);await pg.locator('.chippop button.nw').click();await pg.wait_for_timeout(400)
     await pg.fill('#pkFind','Jon catch-up');await pg.press('#pkFind','Enter');await pg.wait_for_timeout(500)
     await pg.locator('#adds .chip[data-kind="move"]').click();await pg.wait_for_timeout(500)
     ps,st=await pebs(pg,'2026-11-02');ps.sort(key=lambda p:p['start'])

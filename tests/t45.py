@@ -10,8 +10,11 @@ async def main():
   await pg.goto('http://127.0.0.1:8772/tests/app.html');await pg.wait_for_timeout(300);await S.at(pg,'2026-11-02T20:40:00+11:00')
   await pg.click('#setBtn');await pg.wait_for_timeout(400);await pg.click('#freshBtn');await pg.wait_for_timeout(400);await pg.click('#setBtn')
   # chip hover popover
-  await pg.locator('#adds .chip[data-gid]').nth(3).hover();await pg.wait_for_timeout(300);early=await pg.locator('.chippop.on').count();await pg.wait_for_timeout(700)
-  items=await pg.locator('.chippop button').all_inner_texts();S.check(early==0 and len(items)>0,'hovering a chip pops its projects after a pause',items)
+  n0=len((await S.state(pg))['pebbles'])
+  await pg.locator('#adds .chip[data-gid]').nth(3).hover();await pg.wait_for_timeout(80);early=await pg.locator('.chippop').count();await pg.wait_for_timeout(300)
+  items=await pg.locator('.chippop button').all_inner_texts();S.check(early==0 and len(items)>0 and items[-1].startswith('+ new project'),'hovering a chip pops its projects quickly (not instantly)',items)
+  await pg.locator('#adds .chip[data-gid]').nth(3).click();await pg.wait_for_timeout(400)
+  S.check(len((await S.state(pg))['pebbles'])==n0 and await pg.locator('.chippop.on').count()==1,'clicking a channel chip adds nothing, just shows its projects')
   await pg.screenshot(path=os.path.join(ROOT,'tests','shots','chippop.png'),clip={'x':0,'y':180,'width':700,'height':200})
   await pg.locator('.chippop button').first.click();await pg.wait_for_timeout(500)
   st=await S.state(pg);S.check(len(st['pebbles'])==1,'clicking a project in the pop adds it',[st['projects'][p['pid']]['name'] for p in st['pebbles']])

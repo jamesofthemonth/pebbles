@@ -12,7 +12,7 @@ async def main():
   await pg.reload();await pg.wait_for_timeout(1500)
   ok(await pg.evaluate("!!navigator.serviceWorker.controller"),'offline worker in control')
   await pg.locator('#adds [data-addm]').click();await pg.wait_for_timeout(400);await pg.keyboard.type('Studio');await pg.keyboard.press('Enter');await pg.click('#docClose');await pg.wait_for_timeout(300)
-  await pg.locator('#adds .chip[data-gid]').first.click();await pg.wait_for_timeout(400);await pg.fill('#pkFind','Keep me 30m');await pg.press('#pkFind','Enter');await pg.wait_for_timeout(800)
+  await pg.locator('#adds .chip[data-gid]').first.click();await pg.wait_for_timeout(400);await pg.locator('.chippop button.nw').click();await pg.wait_for_timeout(400);await pg.fill('#pkFind','Keep me 30m');await pg.press('#pkFind','Enter');await pg.wait_for_timeout(800)
   # publish a "new version": change index.html marker + sw version
   h=open(APP+'/index.html').read().replace('</body>','<i id="newver"></i></body>');open(APP+'/index.html','w').write(h)
   w=open(APP+'/sw.js').read();w=re.sub(r"const VERSION='[^']*'","const VERSION='pebbles-test-next'",w);open(APP+'/sw.js','w').write(w)

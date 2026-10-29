@@ -62,9 +62,8 @@ State object `S` (saved as JSON in `localStorage['pebble-planner-v1']`, mirrored
 ## Behaviour rules (settled)
 
 ### Adding pebbles
-- Channel chip click → new pebble after the last one (or now), picker opens to choose/create the project. Activity chip → the group's most recent activity.
-- Hover a chip ~0.75 s → its projects (most recently used first) or activities pop out above it; click one to add, or **drag it onto the timeline**. While a pop-out is open, sliding to the next chip switches instantly.
-- Drag a chip onto the timeline to place it; an outline shows where it will land.
+- **Projects are only added from a channel chip's pop-out** (James's rule). Hovering a channel chip ~0.2 s, or clicking/tapping it, pops out its projects (most recently used first) plus **+ new project** (opens the picker). Click one to add it after the last pebble, or **drag it onto the timeline**. Clicking or dragging the channel chip itself adds nothing.
+- Activity chips: click → the group's most recent activity; drag onto the timeline to place; hover pops out the group's activities. While a pop-out is open, sliding to the next chip switches instantly.
 - **Drag a task** from any project list onto the timeline → pebble for that project with the task in its session.
 - Picker accepts quick text: `jon call 45m 4pm` → name + length + start (simple parser, no AI). A preview line shows the parsed time/length.
 - New pebbles remember each project's last Pomodoro setting.

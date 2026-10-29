@@ -747,6 +747,7 @@ button:disabled{cursor:var(--cur)}
 .pk-parse{padding:6px 10px;color:var(--ink);font-size:11px;letter-spacing:.04em;border-bottom:1px solid var(--hair);margin-bottom:4px}
 .chippop button{cursor:var(--cur-grab)}
 .rowghost.totl{opacity:.85;transform:scale(.92);transform-origin:left center;transition:transform .15s}
+.chippop button.nw{color:var(--muted)}
 .chippop button:hover{box-shadow:inset 0 0 0 1px var(--hov)}
 .chippop button .mono{margin-left:auto}
 .chippop button{display:flex;align-items:center;justify-content:flex-start;gap:12px;padding:7px 9px;border-radius:8px;text-align:left;white-space:nowrap}
@@ -754,6 +755,7 @@ button:disabled{cursor:var(--cur)}
 .chippop button .mono{color:var(--muted);font-size:11px}
 .chippop button::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--pc,var(--muted));flex:none;margin-right:-6px}
 .chippop[data-sty] button::before{border-radius:2px;background:var(--pats,var(--panel));box-shadow:inset 0 0 0 1px var(--line);width:9px;height:9px}
+.chippop button.nw::before{visibility:hidden}
 .calhov b{display:block;font-weight:500;margin-bottom:3px}
 .calhov .mono{color:var(--muted);font-size:11px;display:block}
 .calhov .lc{display:block;margin-top:4px}
@@ -1624,24 +1626,29 @@ function chipDur(cd){if(cd.pid){const pr=S.projects[cd.pid];return isAct(pr)?(pr
 let chipDrag=null,cpT=0,cpHideT=0,cpEl=null,cpFor=null;
 function chipPopItems(c){if(c.dataset.gid){const ps=Object.values(S.projects).filter(p=>!isAct(p)&&p.group===c.dataset.gid);
     const used=id=>Math.max(0,...S.pebbles.filter(q=>q.pid===id).map(q=>parseIso(q.date).getTime()+q.start*60000));ps.sort((a,b)=>used(b.id)-used(a.id));
-    return ps.map(p=>({pid:p.id,label:p.name,meta:openOf(p).length?openOf(p).length+'':'',kind:'work'}))}
+    return ps.map(p=>({pid:p.id,label:p.name,meta:openOf(p).length?openOf(p).length+'':'',kind:'work'})).concat([{gid:c.dataset.gid,label:'+ new project',meta:'',kind:'work',nw:true}])}
   if(c.dataset.kind&&KINDS[c.dataset.kind])return Object.values(S.projects).filter(p=>p.kind===c.dataset.kind).map(p=>({pid:p.id,label:p.name,meta:(p.dflt||KINDS[p.kind].dur)+'m',kind:p.kind}));return []}
 function showChipPop(c){const items=chipPopItems(c);if(!items.length)return;hideChipPop(true);
   const el=document.createElement('div');el.className='chippop';if(c.dataset.g)el.dataset.g=c.dataset.g;if(c.dataset.sty)el.dataset.sty=c.dataset.sty;
-  el.innerHTML=items.map((it,i)=>`<button data-i="${i}" style="--i:${i}"><span>${esc(it.label)}</span><span class="mono">${esc(it.meta)}</span></button>`).join('');document.body.appendChild(el);
+  el.innerHTML=items.map((it,i)=>`<button data-i="${i}"${it.nw?' class="nw"':''} style="--i:${i}"><span>${esc(it.label)}</span><span class="mono">${esc(it.meta)}</span></button>`).join('');document.body.appendChild(el);
   const r=c.getBoundingClientRect();el.style.left=Math.max(8,Math.min(innerWidth-el.offsetWidth-8,r.left))+'px';let top=r.top-el.offsetHeight-6;if(top<8)top=r.bottom+6;el.style.top=top+'px';
   el.onpointerdown=e=>{const b=e.target.closest('[data-i]');if(!b||e.button>0)return;e.preventDefault();const it=items[+b.dataset.i],g=c.dataset.g;
-    chipDrag={kind:it.kind,pid:it.pid,col:it.kind==='work'?g:null,label:it.label,x0:e.clientX,y0:e.clientY,moved:false};
+    chipDrag={kind:it.kind,pid:it.pid,gid:it.gid,col:it.kind==='work'?g:null,label:it.label,x0:e.clientX,y0:e.clientY,moved:false};
     const up=ev=>chipEnd(ev,false);chipDrag.doc=up;document.addEventListener('pointermove',chipMove);document.addEventListener('pointerup',up);
     const hide=()=>{if(chipDrag&&chipDrag.moved){hideChipPop(true);document.removeEventListener('pointermove',hide)}};document.addEventListener('pointermove',hide)};
   el.onpointerenter=()=>clearTimeout(cpHideT);el.onpointerleave=()=>{cpHideT=setTimeout(()=>hideChipPop(),220)};
   cpEl=el;cpFor=c;requestAnimationFrame(()=>el.classList.add('on'))}
 function hideChipPop(now){clearTimeout(cpT);clearTimeout(cpHideT);if(!cpEl)return;const el=cpEl;cpEl=null;cpFor=null;if(now)el.remove();else{el.classList.remove('on');setTimeout(()=>el.remove(),160)}}
 adds.addEventListener('pointerover',e=>{if(e.pointerType==='touch')return;const c=e.target.closest('.chip[data-gid],.chip[data-kind]');if(!c){return}clearTimeout(cpHideT);if(c===cpFor)return;clearTimeout(cpT);
-  if(cpEl){showChipPop(c);return}cpT=setTimeout(()=>{if(c.matches(':hover')&&!chipDrag)showChipPop(c)},750)});
+  if(cpEl){showChipPop(c);return}cpT=setTimeout(()=>{if(c.matches(':hover')&&!chipDrag)showChipPop(c)},200)});
 adds.addEventListener('pointerout',e=>{const c=e.target.closest('.chip');if(!c||c.contains(e.relatedTarget))return;clearTimeout(cpT);if(cpEl)cpHideT=setTimeout(()=>hideChipPop(),220)});
-adds.addEventListener('click',e=>{const sv=e.target.closest('#saveTpl');if(sv)saveTemplatePop(sv)});
-adds.addEventListener('pointerdown',e=>{const c=e.target.closest('.chip');if(!c||e.button>0)return;hideChipPop(true);
+adds.addEventListener('click',e=>{const sv=e.target.closest('#saveTpl');if(sv)saveTemplatePop(sv);const c=e.target.closest('.chip[data-gid]');if(c&&e.detail===0){if(cpFor===c)hideChipPop();else{showChipPop(c);const f=cpEl&&cpEl.querySelector('button');if(f)f.focus()}}});
+document.addEventListener('pointerdown',e=>{if(cpEl&&!e.target.closest('.chippop,#adds .chip'))hideChipPop()},true);
+{const cpClick=e=>{if(!cpEl)return;const b=e.target.closest('.chippop [data-i]');if(b&&e.detail===0){const it=chipPopItems(cpFor)[+b.dataset.i];hideChipPop(true);chipAdd(it,null)}};document.addEventListener('click',cpClick)}
+/* channel chips only open their projects; a project is added from the pop-out (click or drag) */
+adds.addEventListener('pointerdown',e=>{const c=e.target.closest('.chip');if(!c||e.button>0)return;
+  if(c.dataset.gid){e.preventDefault();clearTimeout(cpT);if(cpEl&&cpFor===c&&e.pointerType==='touch')hideChipPop();else if(cpFor!==c)showChipPop(c);return}
+  hideChipPop(true);
   if(c.dataset.addm){newMaster();return}
   if(c.dataset.addt){newType();return}
   chipDrag={kind:c.dataset.kind,gid:c.dataset.gid,col:c.dataset.g,label:c.textContent,x0:e.clientX,y0:e.clientY,moved:false};try{c.setPointerCapture(e.pointerId)}catch(_){}});

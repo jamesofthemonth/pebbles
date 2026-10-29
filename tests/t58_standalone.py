@@ -12,7 +12,7 @@ async def main():
   sw=await pg.evaluate("navigator.serviceWorker.getRegistration().then(r=>!!r)");ok(sw,'offline worker registered')
   # make a channel + pebble
   await pg.locator('#adds [data-addm]').click();await pg.wait_for_timeout(400);await pg.keyboard.type('Studio');await pg.keyboard.press('Enter');await pg.click('#docClose');await pg.wait_for_timeout(300)
-  await pg.locator('#adds .chip[data-gid]').first.click();await pg.wait_for_timeout(400);await pg.fill('#pkFind','Test project 30m');await pg.press('#pkFind','Enter');await pg.wait_for_timeout(1500)
+  await pg.locator('#adds .chip[data-gid]').first.click();await pg.wait_for_timeout(400);await pg.locator('.chippop button.nw').click();await pg.wait_for_timeout(400);await pg.fill('#pkFind','Test project 30m');await pg.press('#pkFind','Enter');await pg.wait_for_timeout(1500)
   # folder backup using the browser's private file system as a stand-in folder
   await pg.evaluate("navigator.storage.getDirectory().then(d=>window.__pebblesTest.useFolder(d))");await pg.wait_for_timeout(2500)
   files=await pg.evaluate("""(async()=>{const d=await navigator.storage.getDirectory();const out=[];for await(const [n,h] of d.entries()){out.push(n);if(h.kind==='directory')for await(const [m] of h.entries())out.push(n+'/'+m)}return out})()""")
