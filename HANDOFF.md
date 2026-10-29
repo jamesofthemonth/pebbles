@@ -108,6 +108,9 @@ State object `S` (saved as JSON in `localStorage['pebble-planner-v1']`, mirrored
 - Springs/eased transitions, interruptible. FLIP animation for task rows. View switches slide in the tab direction; keyboard switches are instant (frequent actions shouldn't animate). Pressed feedback on everything clickable. Respects reduced-motion.
 - Custom dot cursors (black dot, ring on clickables, red dot on pebbles); text cursor in inputs, resize arrows on pebble edges.
 
+### Updates
+- The app checks for a new version on open, every 30 minutes and when the window comes back to the front. A new version is swapped in (page reload, save flushed first) only when the window is in the background or untouched for 45 s, and never mid-drag, while typing, or while the mini timer is open. Settings → data → updates → check now. Always run `tools/bump.py` before pushing, or installed copies won't see the change.
+
 ## Not done yet (in rough order)
 
 1. **Bundle the font locally** (Space Mono, OFL) instead of Google Fonts, so first launch offline looks right.
@@ -119,4 +122,4 @@ Known gap: the sync merge skips merging while you're typing or mid-drag (that on
 
 ## Tests
 
-`tests/harness.py` builds a test copy of `index.html` with a fake clock (`window.__setNow`), a fake account database in localStorage and fake calendar events; `tests/run.py` is the simulated five-week run (Mon studio day, template day, due-task alerts, midnight rollover, copy/clear day, month-later pruning, update safety, phone width). Feature tests: `t45` (chip pop, late nights, edges, chapter marks), `t46` (elastic transitions, drawer, wrap tag), `t47` (stretch chains), `t48` (move chains, transition pop), `t52` (frozen transitions, Alt, wheel, two-device merge), `t56` (drag to book, review, repeats, quick typing, free-time booking), `t57` (fresh start), `t58_standalone` (offline worker, folder backup, export, mini timer), `t59_pip` (mini timer screenshot), `t60_gcal_link` (calendar via Apps Script link, faked). Run the full set before publishing.
+`tests/harness.py` builds a test copy of `index.html` with a fake clock (`window.__setNow`), a fake account database in localStorage and fake calendar events; `tests/run.py` is the simulated five-week run (Mon studio day, template day, due-task alerts, midnight rollover, copy/clear day, month-later pruning, update safety, phone width). Feature tests: `t45` (chip pop, late nights, edges, chapter marks), `t46` (elastic transitions, drawer, wrap tag), `t47` (stretch chains), `t48` (move chains, transition pop), `t52` (frozen transitions, Alt, wheel, two-device merge), `t56` (drag to book, review, repeats, quick typing, free-time booking), `t57` (fresh start), `t58_standalone` (offline worker, folder backup, export, mini timer), `t59_pip` (mini timer screenshot), `t60_gcal_link` (calendar via Apps Script link, faked), `t61_update` (auto update swaps in when idle or in the background, plan kept). Run the full set before publishing.

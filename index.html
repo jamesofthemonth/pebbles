@@ -2239,7 +2239,7 @@ function renderSettings(){
     ${STANDALONE?`<section id="s-calendars"><h3>calendars</h3><div class="srow"><span>google calendar script</span><div class="links"><button id="gasCopy">copy script</button><button id="gasMan">copy appsscript.json</button></div></div><form class="calx" id="calLink"><input id="calUrlIn" type="url" value="${esc(st.calUrl||'')}" placeholder="web app link" aria-label="Calendar web app link" spellcheck="false"><button class="pill" type="submit">Save</button></form><div id="calSet"></div>${st.calUrl?'<div class="links" style="margin-top:6px"><button id="calRefresh">refresh calendar list</button><button class="danger" id="calUnlink">remove link</button></div>':''}<p class="snote">The script runs in your own Google account and only reads your calendars. Keep the link private.</p></section>`:`<section id="s-calendars"><h3>calendars</h3><div id="calSet"><div class="snote">loading</div></div><form class="calx" id="calAdd"><input id="calAddr" type="email" placeholder="calendar address" aria-label="Add a calendar by address"><button class="pill" type="submit">Add</button></form><div class="links" style="margin-top:6px"><button id="calRefresh">refresh calendar list</button></div><p class="snote">Another account's calendar shows once it's shared with this account in Google Calendar (settings and sharing, share with specific people, see all event details).</p></section>`}
     <section id="s-templates"><h3>day templates</h3>${tpls.length?tpls.map(t=>`<div class="srow"><input class="tname" data-tname="${t.id}" value="${esc(t.name)}" aria-label="Template name"><span class="mono muted">${t.items.length} pebbles</span><button class="gbtn" data-tdel2="${t.id}" aria-label="Delete ${esc(t.name)}">×</button></div>`).join(''):'<div class="snote">none saved</div>'}</section>
     <section id="s-shortcuts"><h3>shortcuts</h3><dl class="sdl">${HELP_ROWS.map(r=>`<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}</dl></section>
-    <section id="s-data"><h3>data</h3>${STANDALONE&&window.showDirectoryPicker?`<div class="srow"><span>backup folder</span><div class="links" id="dirRow"><span class="mono muted">checking</span></div></div>`:""}<div class="srow"><span>backup</span><div class="links"><button id="expBtn">export</button><button id="impBtn">import</button></div></div><div class="srow"><span>daily backups</span><div class="links" id="bkList"><span class="mono muted">loading</span></div></div><div class="srow"><span>data version</span><span class="mono muted">${SCHEMA}</span></div>${S.example?'<div class="srow"><span>example data</span><div class="links"><button class="danger" id="freshBtn">clear example data</button></div></div>':''}</section>
+    <section id="s-data"><h3>data</h3>${STANDALONE&&window.showDirectoryPicker?`<div class="srow"><span>backup folder</span><div class="links" id="dirRow"><span class="mono muted">checking</span></div></div>`:""}<div class="srow"><span>backup</span><div class="links"><button id="expBtn">export</button><button id="impBtn">import</button></div></div><div class="srow"><span>daily backups</span><div class="links" id="bkList"><span class="mono muted">loading</span></div></div>${STANDALONE&&'serviceWorker' in navigator?'<div class="srow"><span>updates</span><div class="links"><button id="updBtn">check now</button></div></div>':''}<div class="srow"><span>data version</span><span class="mono muted">${SCHEMA}</span></div>${S.example?'<div class="srow"><span>example data</span><div class="links"><button class="danger" id="freshBtn">clear example data</button></div></div>':''}</section>
   </div></div></section>`;
   window.scrollTo(0,y);
   drawDirRow();
@@ -2261,6 +2261,7 @@ function renderSettings(){
     const cpy=e.target.closest('#gasCopy,#gasMan');if(cpy){const t=cpy.id==='gasCopy'?gasScript(calKey()):gasManifest();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast(cpy.id==='gasCopy'?'Script copied':'appsscript.json copied'),()=>toast('Couldn’t copy'));return}
     if(e.target.closest('#calUnlink')){confirmPop(e.target.closest('#calUnlink'),'Remove the calendar link?','Remove',()=>{ST().calUrl='';save();resetCal();calData={};calStatus='';updCalBtn();renderSettings();renderTrack();renderCalRow()});return}
     if(e.target.closest('#calRefresh')){resetCal();getCals(true).then(()=>{drawCalSettings();renderTrack()}).catch(()=>drawCalSettings());toast('Refreshing calendars');return}
+    if(e.target.closest('#updBtn')){checkUpdate(true);return}
     if(e.target.closest('#expBtn'))exportBackup();
     if(e.target.closest('#impBtn'))$('#impFile').click();
     const bk=e.target.closest('[data-bk]');if(bk){confirmPop(bk,`Go back to your plan as it was on <b>${esc(bk.textContent)}</b>? You can undo this.`,'Restore',async()=>{
@@ -2395,7 +2396,7 @@ function renderStatus(){
     prevSig=sig}
   const actId=c.type==='pebble'?c.p.id:null;if(c.type==='pebble'&&c.p.plan==null&&!isAct(proj(c.p))){c.p.plan=c.p.dur;save()}prevActive=actId;
   const tt=c.type==='pebble'?mmss(left)+' · '+name:c.type==='trans'?mmss(left)+' · transition':'Pebble Planner';if(document.title!==tt)document.title=tt;
-  {const bm=(c.type==='pebble'||c.type==='trans')?Math.max(1,Math.ceil(left/60)):0;if(bm>99)bm=0;if(bm!==lastBadge&&navigator.setAppBadge){lastBadge=bm;try{bm?navigator.setAppBadge(bm):navigator.clearAppBadge()}catch(e){}}}
+  {let bm=(c.type==='pebble'||c.type==='trans')?Math.max(1,Math.ceil(left/60)):0;if(bm>99)bm=0;if(bm!==lastBadge&&navigator.setAppBadge){lastBadge=bm;try{bm?navigator.setAppBadge(bm):navigator.clearAppBadge()}catch(e){}}}
   pipUpdate(c,{label,name,left,total,wrap,brk,phase,phaseBrk});
 }
 /* ---------- mini timer: a small always-on-top window (Chrome / Edge on desktop) ---------- */
@@ -2493,12 +2494,25 @@ addEventListener('pagehide',flushNow);document.addEventListener('visibilitychang
 setInterval(()=>{if(drag)return;{const ld=LIVE().date;if(ld!==lastDay){const was=lastDay;lastDay=ld;if(viewDate===was){viewDate=ld;sel=null;renderPanel()}if(prune())save();renderAll();if(viewDate===ld)requestAnimationFrame(()=>jumpNow(true))}}
   if(calOn&&calStatus==='ok'&&Date.now()-calLast>300000){calLast=Date.now();loadCal(viewDate,true)}
   renderTrack();renderStatus();updatePanelTime();if(new Date().getSeconds()===0)renderAlerts()},1000);
+/* Updates: check quietly for a new version, then swap it in when you're not in the middle of something. */
+let swReg=null,updWaiting=false,lastAct=Date.now();
+['pointerdown','keydown','wheel'].forEach(t=>addEventListener(t,()=>{lastAct=Date.now()},{capture:true,passive:true}));
+function busy(){const a=document.activeElement;return !!(drag||pipWin||document.body.classList.contains('marqueeing')||(a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable)))}
+function tryUpdate(){if(!updWaiting)return;if(busy()||(!document.hidden&&Date.now()-lastAct<45000)){setTimeout(tryUpdate,10000);return}
+  try{flushNow()}catch(e){}try{sessionStorage.setItem('pebbles-updated','1')}catch(e){}location.reload()}
+function checkUpdate(manual){if(!swReg||!navigator.onLine){if(manual)toast(navigator.onLine?'Couldn’t check for updates':'Offline');return}
+  swReg.update().then(()=>{if(manual)toast(swReg.installing||swReg.waiting||updWaiting?'Updating…':'Up to date')}).catch(()=>{if(manual)toast('Couldn’t check for updates')})}
+if('serviceWorker' in navigator){let had=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}updWaiting=true;tryUpdate()});
+  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;setInterval(()=>checkUpdate(),30*60000);setTimeout(()=>checkUpdate(),5000)}).catch(()=>{}));
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){if(updWaiting)tryUpdate()}else checkUpdate()})}
+try{if(sessionStorage.getItem('pebbles-updated')){sessionStorage.removeItem('pebbles-updated');setTimeout(()=>toast('Pebbles updated'),800)}}catch(e){}
 })();
 </script>
 
 <script>
 /* offline support + updates: the service worker keeps a copy of the app so it opens without internet */
-if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+
 </script>
 </body>
 </html>
