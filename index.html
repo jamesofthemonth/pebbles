@@ -8,7 +8,6 @@
 <meta name="color-scheme" content="light dark">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
-<link rel="icon" href="icons/icon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1501,7 +1500,9 @@ function dragMove(e){
     return}
   if(drag.off){drag.off=false;drag.g.remove();drag.g=null;drag.el.style.opacity='';drag.dropDay=null;document.querySelectorAll('.day.drop').forEach(x=>x.classList.remove('drop'))}
   restore(drag.snapshot);const p=byId(drag.id),orig=drag.snapshot.find(s=>s[0]===drag.id);
-  const m=(e.clientX-track.getBoundingClientRect().left)/ppm+R[0];const raw=m-drag.m0,delta=Math.round(raw/5)*5;
+  const m=(e.clientX-track.getBoundingClientRect().left)/ppm+R[0];const raw=m-drag.m0,
+    /* snap to the timeline's 5-minute marks (not to steps from where the pebble started) */
+    delta=drag.mode==='resize'?snap(orig[1]+orig[2]+raw)-(orig[1]+orig[2]):snap(orig[1]+raw)-orig[1];
   if(drag.group){const os=drag.group.map(id=>drag.snapshot.find(x=>x[0]===id)).filter(Boolean);const lo=-Math.min(...os.map(o=>o[1])),hi=DAYMAX-Math.max(...os.map(o=>o[1]+o[2]));
     let d=Math.max(lo,Math.min(hi,delta));os.forEach(o=>{byId(o[0]).start=o[1]+d});
     if(drag.fromChain&&drag.att){const pv=byId(drag.att),pe=pv.start+pv.dur,gap=p.start-pe;if(gap>-p.dur/2&&gap<=60){const want=gap<5?pe:p.start;if(gap<5){pv.trans=false;delete pv.tlen}else{pv.trans=(isAct(proj(pv))||isAct(proj(p)))?'on':true;pv.tlen=gap}const corr=want-p.start;if(corr){os.forEach(o=>{byId(o[0]).start+=corr});d+=corr}}}
@@ -1519,7 +1520,7 @@ function dragMove(e){
     let st=orig[1]+raw,rb=0;if(st<lo){rb=rubber((lo-st)*ppm,24);st=lo}else if(st>hi){rb=-rubber((st-hi)*ppm,8);st=hi}
     drag.raw={start:st,dur:end-st,lo:rb,wo:rb}}
   else{let hi=DAYMAX-orig[1];if(drag.chain){const ce=Math.max(...drag.chain.map(id=>{const o=drag.snapshot.find(x=>x[0]===id);return o[1]+o[2]}));hi=orig[2]+(DAYMAX-ce)}
-    p.dur=Math.max(5,Math.min(hi,orig[2]+delta));
+    p.dur=Math.max(Math.ceil((orig[1]+5)/5)*5-orig[1],Math.min(hi,orig[2]+delta));
     let du=orig[2]+raw,wo=0;if(du<5){wo=-rubber((5-du)*ppm,8);du=5}else if(du>hi){wo=rubber((du-hi)*ppm,40);du=hi}
     drag.raw={start:orig[1],dur:du,lo:0,wo};
     if(drag.chain){let a=p;drag.chain.forEach(id=>{const b=byId(id);b.start=a.start+a.dur+transLen(a,b);a=b});
@@ -1622,6 +1623,16 @@ function chipAdd(cd,start){if(cd.pid)addPebble(cd.kind||'work',start,{pid:cd.pid
 function dropStart(x,y,grab){const r=scroller.getBoundingClientRect();if(x<r.left||x>r.right||y<r.top-20||y>r.bottom+20)return null;const tr=track.getBoundingClientRect();return snap((x-(grab||12)-tr.left)/ppm+R[0])}
 function dropPreview(start,dur){let sl=track.querySelector('.slot[data-for="drop"]');if(start==null){if(sl)sl.remove();return}
   if(!sl){sl=document.createElement('div');sl.className='slot';sl.dataset.for='drop';track.appendChild(sl)}sl.style.left=((start-R[0])*ppm)+'px';sl.style.width=(dur*ppm)+'px'}
+/* a new pebble dropped into a gap shrinks to fit it (in 5-minute steps) instead of pushing the day along */
+function fitDrop(st,dur,act){const ps=dayPebbles(viewDate),stt=ST(),tl=(a,d,nxAct)=>(a.trans===false||((act||nxAct)&&a.trans!=='on'))?0:(a.tlen||(d>=stt.tThresh?stt.tLong:stt.tShort));
+  const pv=ps.filter(q=>q.start<=st).pop();if(pv){const pe=pv.start+pv.dur+(pv.trans===false||((isAct(proj(pv))||act)&&pv.trans!=='on')?0:(pv.tlen||(pv.dur>=stt.tThresh?stt.tLong:stt.tShort)));if(st<pe+GAPMIN)st=pe}
+  const nx=ps.find(q=>q.start>=st);if(!nx)return {start:st,dur};const na=isAct(proj(nx)),myT=d=>(!stt.autoTrans||act||na)?0:(d>=stt.tThresh?stt.tLong:stt.tShort);
+  if(st+dur+myT(dur)<=nx.start)return {start:st,dur};
+  for(let d=dur-5;d>=5;d-=5)if(st+d+myT(d)<=nx.start)return {start:st,dur:d};
+  const room=Math.floor((nx.start-st)/5)*5;if(room>=5)return {start:st,dur:room,noT:true};
+  return {start:st,dur}}
+function chipAct(cd){if(cd.pid)return isAct(S.projects[cd.pid]);return !!(cd.kind&&KINDS[cd.kind]&&KINDS[cd.kind].activity)}
+function dropFit(ds,dur,act){if(ds==null)return dropPreview(null);const f=fitDrop(ds,dur,act);dropPreview(f.start,f.dur)}
 function chipDur(cd){if(cd.pid){const pr=S.projects[cd.pid];return isAct(pr)?(pr.dflt||KINDS[pr.kind].dur):ST().workLen}return cd.kind&&KINDS[cd.kind]?KINDS[cd.kind].dur:ST().workLen}
 let chipDrag=null,cpT=0,cpHideT=0,cpEl=null,cpFor=null;
 function chipPopItems(c){if(c.dataset.gid){const ps=Object.values(S.projects).filter(p=>!isAct(p)&&p.group===c.dataset.gid);
@@ -1657,7 +1668,7 @@ function chipMove(e){
   if(!chipDrag.moved){if(Math.hypot(e.clientX-chipDrag.x0,e.clientY-chipDrag.y0)<6)return;chipDrag.moved=true;document.body.classList.add('chipdrag');
     const g=document.createElement('div');g.className='ghost';if(chipDrag.kind){g.dataset.kind=chipDrag.kind;if(KINDS[chipDrag.kind])g.dataset.sty=KINDS[chipDrag.kind].sty}if(chipDrag.col!=null)g.dataset.g=chipDrag.col;g.style.width=Math.max(60,(chipDrag.kind?KINDS[chipDrag.kind].dur:60)*ppm)+'px';g.innerHTML='<span class="sw"></span>'+esc(chipDrag.label);document.body.appendChild(g);chipDrag.g=g}
   chipDrag.g.style.left=(e.clientX-12)+'px';chipDrag.g.style.top=(e.clientY-30)+'px';chipDrag.cx=e.clientX;chipDrag.cy=e.clientY;kickEdge();
-  dropPreview(dropStart(e.clientX,e.clientY),chipDur(chipDrag));
+  dropFit(dropStart(e.clientX,e.clientY),chipDur(chipDrag),chipAct(chipDrag));
 }
 adds.addEventListener('pointermove',chipMove);
 function chipEnd(e,cancel){
@@ -1668,12 +1679,13 @@ function chipEnd(e,cancel){
 adds.addEventListener('pointerup',e=>chipEnd(e,false));
 adds.addEventListener('pointercancel',e=>chipEnd(e,true));
 function addPebble(kind,start,opts){
-  opts=opts||{};const pid=opts.pid||streamForAct(kind);const pr=S.projects[pid];const dur=isAct(pr)?(pr.dflt||KINDS[pr.kind].dur):ST().workLen;
+  opts=opts||{};const pid=opts.pid||streamForAct(kind);const pr=S.projects[pid];let dur=isAct(pr)?(pr.dflt||KINDS[pr.kind].dur):ST().workLen,noT=false;
+  if(start!=null&&!opts.nofit){const f=fitDrop(start,dur,isAct(pr));start=f.start;dur=f.dur;noT=!!f.noT}
   docOpen=false;$('#docBtn').classList.remove('on');
   if(start==null){const ps=dayPebbles(viewDate),last=ps[ps.length-1];
     if(last){const st=ST();const gap=(isAct(proj(last))||isAct(pr)||last.trans===false||!st.autoTrans)?0:(last.tlen||(last.dur>=st.tThresh?st.tLong:st.tShort));start=last.start+last.dur+gap}
     else start=isLive(viewDate)?Math.ceil(nowFor()/5)*5:9*60}
-  const p={id:uid(),pid,date:viewDate,start,dur,pomo:!isAct(pr)&&!!pr.lastPomo,intent:'',trans:ST().autoTrans?true:false,session:opts.session||[]};
+  const p={id:uid(),pid,date:viewDate,start,dur,pomo:!isAct(pr)&&!!pr.lastPomo,intent:'',trans:ST().autoTrans&&!noT?true:false,session:opts.session||[]};
   S.pebbles.push(p);if(pr.group)S.lastG[pr.group]=pid;else S.last[pr.kind]=pid;magnet(p,'move');reflow(viewDate);save();
   renderDays();alertSig='';renderAlerts();select({id:p.id});renderStatus();if(opts.ask)setTimeout(()=>openPicker(p,true),120);
   requestAnimationFrame(()=>{const el=pEls[p.id];if(el){const x=el.offsetLeft;if(x<scroller.scrollLeft||x+el.offsetWidth>scroller.scrollLeft+scroller.clientWidth)scroller.scrollTo({left:x-scroller.clientWidth*0.3,behavior:'smooth'})}});
@@ -1773,7 +1785,7 @@ function rowDrag(e,li,t,view,from){
   let target=from,toTl=null;const sessBox=root.querySelector('[data-box="sess"]');
   const mv=ev=>{ghost.style.left=(ev.clientX-dx)+'px';ghost.style.top=(ev.clientY-dy)+'px';
     if(ev.clientY<60)window.scrollBy(0,-12);else if(ev.clientY>window.innerHeight-60)window.scrollBy(0,12);
-    const ds=from!=='recent'?dropStart(ev.clientX,ev.clientY,8):null;dropPreview(ds,ST().workLen);ghost.classList.toggle('totl',ds!=null);toTl=ds;if(ds!=null){kickEdgeAt(ev.clientX,ev.clientY);return}edgeAt=null;
+    const ds=from!=='recent'?dropStart(ev.clientX,ev.clientY,8):null;dropFit(ds,ST().workLen,false);ghost.classList.toggle('totl',ds!=null);toTl=ds;if(ds!=null){kickEdgeAt(ev.clientX,ev.clientY);return}edgeAt=null;
     const under=document.elementFromPoint(ev.clientX,ev.clientY);const box=under&&under.closest('[data-box]');
     if(!box||!root.contains(box))return;
     const tl=box.querySelector('ol[data-list]');target=tl.dataset.list;
@@ -2405,12 +2417,19 @@ function renderStatus(){
       if(wrap)playSound(sn.wrap);else if(brk)playSound(sn.brk);else if(c.type==='trans')playSound(sn.trans);else if(c.type==='pebble')playSound(sn.start);else if(prevSig.endsWith('wrap')||prevSig.endsWith('run'))playSound(sn.end)}
     prevSig=sig}
   const actId=c.type==='pebble'?c.p.id:null;if(c.type==='pebble'&&c.p.plan==null&&!isAct(proj(c.p))){c.p.plan=c.p.dur;save()}prevActive=actId;
-  const tt=c.type==='pebble'?mmss(left)+' · '+name:c.type==='trans'?mmss(left)+' · transition':'Pebble Planner';if(document.title!==tt)document.title=tt;
-  {let bm=(c.type==='pebble'||c.type==='trans')?Math.max(1,Math.ceil(left/60)):0;if(bm>99)bm=0;if(bm!==lastBadge&&navigator.setAppBadge){lastBadge=bm;try{bm?navigator.setAppBadge(bm):navigator.clearAppBadge()}catch(e){}}}
+  const dot=wrap?(Math.floor(Date.now()/1000)%2?'🔴 ':'⭕ '):brk?'🔵 ':c.type==='trans'?'⚪ ':c.type==='pebble'?'⚫ ':'';const tt=c.type==='pebble'?dot+mmss(left)+' · '+name:c.type==='trans'?dot+mmss(left)+' · transition':'Pebble Planner';if(document.title!==tt)document.title=tt;
+  phaseSignal(wrap?'wrap':brk?'brk':c.type==='trans'?'trans':c.type==='pebble'?'work':'free',c.type==='pebble'?proj(c.p):null);
   pipUpdate(c,{label,name,left,total,wrap,brk,phase,phaseBrk});
 }
 /* ---------- mini timer: a small always-on-top window (Chrome / Edge on desktop) ---------- */
-let lastBadge=-1,pipWin=null;
+let lastBadge=null,lastIcon='',pipWin=null;
+/* taskbar / tab signal: the icon takes the colour of what you're in (work = channel colour, break, transition), and flashes red while wrapping up.
+   The badge can only show a plain dot, so it's used just for the wrap-up flash. */
+function phaseSignal(ph,pr){const css=getComputedStyle(document.documentElement),on=Math.floor(Date.now()/1000)%2===0;
+  let col=null;if(ph==='wrap')col=on?SIG[ST().sig]||'#E5322D':null;else if(ph==='brk')col=BRK[ST().brk]||'#14C8FF';else if(ph==='trans')col='#8A8A86';else if(ph==='work'){const g=gCol(pr);col=(g!=null&&css.getPropertyValue('--g'+g).trim())||'#F2F2F2'}
+  const key=ph+'|'+col;if(key!==lastIcon){lastIcon=key;const l=document.querySelector('link[rel="icon"]');if(l){
+    l.href=ph==='free'?'icons/favicon.svg':'data:image/svg+xml,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0B0B0B"/>${col?`<circle cx="32" cy="32" r="21" fill="${col}"/>`:`<circle cx="32" cy="32" r="19" fill="none" stroke="${SIG[ST().sig]||'#E5322D'}" stroke-width="4"/>`}</svg>`)}}
+  const b=ph==='wrap'&&on;if(b!==lastBadge&&navigator.setAppBadge){lastBadge=b;try{b?navigator.setAppBadge():navigator.clearAppBadge()}catch(e){}}}
 const canPip=()=>STANDALONE&&'documentPictureInPicture' in window;
 async function openPip(){if(!canPip())return;if(pipWin){pipWin.focus();return}
   try{pipWin=await documentPictureInPicture.requestWindow({width:330,height:178})}catch(e){toast('Couldn’t open the mini timer');return}
@@ -2464,7 +2483,7 @@ document.addEventListener('keydown',e=>{
   const p=sel&&sel.id?byId(sel.id):null;
   {const hp=!p&&hovId&&!multi.size?byId(hovId):null;if(hp&&hp.date===viewDate){
     if(e.key==='d'||e.key==='D'){e.preventDefault();if(hp.pid){const ps=dayPebbles(hp.date),i=ps.indexOf(hp);let a=hp,j=i;while(ps[j+1]&&ps[j+1].start===a.start+a.dur+transLen(a,ps[j+1])){a=ps[++j]}
-        addPebble(proj(hp).kind,hp.start+hp.dur,{pid:hp.pid});const np=S.pebbles[S.pebbles.length-1];np.pomo=hp.pomo;np.dur=hp.dur;np.trans=hp.trans;reflow(hp.date);save();renderTrack();renderDays()}return}
+        addPebble(proj(hp).kind,hp.start+hp.dur,{pid:hp.pid,nofit:true});const np=S.pebbles[S.pebbles.length-1];np.pomo=hp.pomo;np.dur=hp.dur;np.trans=hp.trans;reflow(hp.date);save();renderTrack();renderDays()}return}
     if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();hovId=null;hidePbHov();removeGroup([hp.id]);return}}}
   if(e.key==='?'){e.preventDefault();toggleHelp();return}
   if(p&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();const d=e.key==='ArrowLeft'?-5:5;

@@ -68,9 +68,10 @@ State object `S` (saved as JSON in `localStorage['pebble-planner-v1']`, mirrored
 - Picker accepts quick text: `jon call 45m 4pm` → name + length + start (simple parser, no AI). A preview line shows the parsed time/length.
 - New pebbles remember each project's last Pomodoro setting.
 - Gaps under 10 minutes close themselves (magnet). No slivers.
+- A **new** pebble dropped into a gap (from the pop-out, an activity chip or a dragged task) shrinks in 5-minute steps to fit the gap, including its transition, instead of pushing later pebbles. If only 5+ minutes are free it fills that with no transition; under 5, it falls back to pushing. The drop outline shows the fitted size. Existing pebbles being moved keep the chain/push rules below.
 
 ### Dragging
-- Pebbles follow the pointer 1:1; a dashed outline shows the snapped (5 min) landing spot; the dragged pebble shrinks to ~84% (around the grab point) so the outline is visible. Shrink only applies to moving, not resizing.
+- Pebbles follow the pointer 1:1; a dashed outline shows the snapped landing spot. Snapping is to the **timeline's** 5-minute marks (start for moves and left-edge resizes, end for right-edge stretches), never to 5-minute steps from where the pebble started, so off-grid pebbles (e.g. after finish) get pulled back onto the grid; the dragged pebble shrinks to ~84% (around the grab point) so the outline is visible. Shrink only applies to moving, not resizing.
 - Soft edges: dragging past the day's start or 5am limit rubber-bands back.
 - Drag off the timeline (vertically) → remove (undo toast). Fast vertical flick also removes. Drop on a day in the week strip → move to that day.
 - **Joined chains**: pebbles that touch, or are linked by a transition, form a chain. Moving or stretching (right edge) a pebble carries everything joined after it. If the chain reaches a later pebble, that pebble is pushed on (and joins). **Alt+drag** moves/stretches just that one pebble.
@@ -89,7 +90,7 @@ State object `S` (saved as JSON in `localStorage['pebble-planner-v1']`, mirrored
 - Left: channel/label, pebble name, "then …" line. Right: phase tag (focus / break / **wrap up** in red) spanning the timer width, dot-matrix countdown below it with its bottom on the "then" line. Bottom row: progress dots, then −5+ and **finish**, together exactly as wide as the timer.
 - **finish**: pebble ends now; the gap to the next 5-minute mark becomes a transition (at least the usual length); joined pebbles after it move up; big tick shows.
 - Free time: offers the most urgent due-but-unbooked task ("book …").
-- Window title shows `mm:ss · name`; taskbar badge shows minutes left.
+- Window title shows `● mm:ss · name` with a coloured circle for the phase. The tab/window icon becomes a solid circle in the phase colour: work = channel colour, break = break colour, transition = grey; **wrap up flashes** (signal colour ↔ ring), and the taskbar badge flashes a plain dot during wrap-up only (the Badging API can't show colour, so no minute count). Free time = normal icon. Whether Windows shows the changing icon on an installed app's taskbar button is unverified.
 - **pop out** → mini timer (Document Picture-in-Picture, Chrome/Edge desktop): name, countdown, next session task with a tick box, −5+, finish.
 
 ### Days and time
