@@ -241,6 +241,7 @@ nav.top button.on{color:var(--ink);background:var(--panel);box-shadow:inset 0 0 
 .field>span{color:var(--muted)}
 .field input,.field select{font-size:16px;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--bg);min-width:0;transition:border-color .15s}
 .field input:focus,.field select:focus{outline:none;border-color:var(--ink)}
+.pebble.locked .pb-time::after{content:"";display:inline-block;width:7px;height:8px;margin-left:5px;vertical-align:-1px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 8'%3E%3Cpath d='M1.5 3.5V2.4a2 2 0 0 1 4 0v1.1' fill='none' stroke='black' stroke-width='1.1'/%3E%3Crect y='3.5' width='7' height='4.5' rx='1'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 8'%3E%3Cpath d='M1.5 3.5V2.4a2 2 0 0 1 4 0v1.1' fill='none' stroke='black' stroke-width='1.1'/%3E%3Crect y='3.5' width='7' height='4.5' rx='1'/%3E%3C/svg%3E") center/contain no-repeat}
 .reprow{display:flex;align-items:center;gap:10px;margin-top:2px}.reprow .mono{color:var(--muted);font-size:11px}
 .lenrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .lenrow input{width:58px;text-align:center;font-family:var(--f-mono);font-size:14px;border:1px solid var(--line);border-radius:10px;padding:5px 6px;background:var(--bg)}
@@ -667,6 +668,7 @@ body.nogrid .scroller,body.nogrid .tprev{background-image:none}
 .srow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 0;min-height:34px;flex-wrap:wrap}
 .srow>span:first-child{font-size:14px}
 .srow .switch{margin-left:0}
+.lockrow .switch{margin-left:0}
 .seg{display:inline-flex;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
 .seg button{padding:5px 12px;font-size:12px;color:var(--muted);transition:background .15s,color .15s}
 .seg button:hover{color:var(--ink)}
@@ -1007,7 +1009,13 @@ function transLen(p,nx){if(nx===undefined){const ps=dayPebbles(p.date);nx=ps[ps.
 function wrapLen(p){const w=ST().wrap;return p.dur>=w*4?w:Math.max(1,Math.round(p.dur/5))}
 /* a transition is only "there" when the next pebble follows straight on from it; otherwise it's just free time */
 function attTrans(p,nx){if(nx===undefined){const ps=dayPebbles(p.date);nx=ps[ps.indexOf(p)+1]||null}const tl=transLen(p,nx);return tl&&nx&&nx.start===p.start+p.dur+tl?tl:0}
-function reflow(date){const ps=dayPebbles(date);for(let i=1;i<ps.length;i++){const a=ps[i-1];if(a.trans!==false&&!a.tlen){const t0=transLen(a,ps[i]);if(t0)a.tlen=t0}const min=a.start+a.dur+transLen(a,ps[i]);if(ps[i].start<min)ps[i].start=min}}
+/* keep pebbles from overlapping. Locked pebbles never get pushed: anything that would run into one goes after it instead */
+function reflow(date){const ps=dayPebbles(date);for(let i=1;i<ps.length;i++){const a=ps[i-1];if(a.trans!==false&&!a.tlen){const t0=transLen(a,ps[i]);if(t0)a.tlen=t0}}
+  const locks=ps.filter(q=>q.lock);let last=null;const later=(a,b)=>!a||b.start+b.dur>a.start+a.dur?b:a;
+  for(const q of ps){if(q.lock){last=later(last,q);continue}
+    if(last){const min=last.start+last.dur+transLen(last,q);if(q.start<min)q.start=min}
+    for(const L of locks){if(L.start+L.dur<=q.start)continue;if(q.start+q.dur+transLen(q,L)<=L.start)break;q.start=L.start+L.dur+transLen(L,q)}
+    last=later(last,q)}}
 function range(){let lo=ST().dayStart*60,hi=ST().dayEnd*60;dayPebbles(viewDate).forEach(p=>{lo=Math.min(lo,p.start-30);hi=Math.max(hi,p.start+p.dur+60)});if(isLive(viewDate)){const n=nowFor();lo=Math.min(lo,n);hi=Math.max(hi,n+30)}return [Math.floor(lo/60)*60,Math.ceil(hi/60)*60]}
 const LATE=300,DAYMAX=1440+LATE;/* a day can run on until 5am the next morning */
 function LIVE(){const t=nowMin();if(t<LATE){const y=shift(TODAY(),-1);if(S.pebbles.some(p=>p.date===y&&p.start+p.dur+transLen(p)>1440))return {date:y,off:1440}}return {date:TODAY(),off:0}}
@@ -1189,11 +1197,11 @@ function repKind(p){const r=repRule(p);if(!r)return 'off';return r.days.length==
 function setRepeat(p,k){S.repeats=S.repeats||[];const old=repRule(p);
   if(old){S.repeats=S.repeats.filter(r=>r!==old);S.pebbles=S.pebbles.filter(q=>!(q.rep===old.id&&q.date>p.date&&!(q.session||[]).length));S.pebbles.forEach(q=>{if(q.rep===old.id)delete q.rep})}
   if(k==='off')return;const wd=parseIso(p.date).getDay();
-  const r={id:uid(),pid:p.pid,start:p.start,dur:p.dur,days:k==='wd'?[1,2,3,4,5]:[wd],from:p.date,pomo:!!p.pomo,trans:p.trans,made:[p.date]};S.repeats.push(r);p.rep=r.id;materialize(TODAY(),shift(weekStart(viewDate),13))}
+  const r={id:uid(),pid:p.pid,start:p.start,dur:p.dur,days:k==='wd'?[1,2,3,4,5]:[wd],from:p.date,pomo:!!p.pomo,trans:p.trans,made:[p.date]};if(p.lock)r.lock=true;S.repeats.push(r);p.rep=r.id;materialize(TODAY(),shift(weekStart(viewDate),13))}
 function materialize(from,to){const rs=S.repeats||[];if(!rs.length)return;let ch=new Set();const today=TODAY();
   rs.forEach(r=>{if(!S.projects[r.pid])return;let d=from<r.from?r.from:from;if(d<today)d=today;
     for(let i=0;i<60&&d<=to;i++,d=shift(d,1)){if(!r.days.includes(parseIso(d).getDay())||r.made.includes(d))continue;
-      r.made.push(d);if(!S.pebbles.some(q=>q.rep===r.id&&q.date===d)){S.pebbles.push({id:uid(),pid:r.pid,date:d,start:r.start,dur:r.dur,pomo:r.pomo,intent:'',trans:r.trans,session:[],rep:r.id});ch.add(d)}}
+      r.made.push(d);if(!S.pebbles.some(q=>q.rep===r.id&&q.date===d)){S.pebbles.push({id:uid(),pid:r.pid,date:d,start:r.start,dur:r.dur,pomo:r.pomo,intent:'',trans:r.trans,session:[],rep:r.id,...(r.lock?{lock:true}:{})});ch.add(d)}}
     r.made=r.made.filter(x=>x>=shift(today,-35))});
   if(ch.size){ch.forEach(reflow);save()}}
 /* how long a project's pebbles actually ran, against what was planned when they started */
@@ -1382,7 +1390,7 @@ function renderTrack0(){
       if(track.dataset.ready&&!daySwitch){el.classList.add('enter');el.addEventListener('animationend',()=>el.classList.remove('enter'),{once:true})}}
     const w=p.dur*ppm;el.dataset.kind=pr.kind;setSty(el,pr);setG(el,pr);el.style.left=((p.start-rs)*ppm)+'px';el.style.width=w+'px';
     {const hw=Math.round(Math.max(6,Math.min(matchMedia('(pointer:coarse)').matches?24:14,w*0.2)))+'px';el.querySelector('.pb-rz').style.width=hw;el.querySelector('.pb-rzl').style.width=Math.max(5,parseInt(hw)-4)+'px'}el.querySelector('.pb-name').textContent=pr.name;el.querySelector('.pb-time').textContent=fmtS(p.start)+'–'+fmtS(p.start+p.dur)+(p.rep?' ↻':'');
-    el.classList.toggle('narrow',w<84);el.classList.toggle('slim',w<130);el.classList.toggle('unset',!!pr.placeholder);el.classList.toggle('tiny',w<40);
+    el.classList.toggle('narrow',w<84);el.classList.toggle('slim',w<130);el.classList.toggle('unset',!!pr.placeholder);el.classList.toggle('tiny',w<40);el.classList.toggle('locked',!!p.lock);
     el.classList.toggle('sel',!!sel&&sel.id===p.id);el.classList.toggle('active',cur.type==='pebble'&&cur.p.id===p.id);
     el.setAttribute('aria-label',pr.name+', '+fmt(p.start)+' to '+fmt(p.start+p.dur));
     el.querySelector('.pb-wrap').style.width=(wrapLen(p)*ppm)+'px';
@@ -1417,7 +1425,7 @@ track.addEventListener('click',e=>{const c=e.target.closest('[data-copy]');if(c)
   const td=e.target.closest('[data-tdel]');if(td){const t=(S.templates||[]).find(x=>x.id===td.dataset.tdel);if(t)confirmPop(td,`Delete the <b>${esc(t.name)}</b> template?`,'Delete',()=>{S.templates=S.templates.filter(x=>x!==t);save();renderTrack()})}});
 function copyDay(src){
   const made=dayPebbles(src).map(q=>{const pr=proj(q),act=isAct(pr);const n={id:uid(),date:viewDate,start:q.start,dur:q.dur,pomo:!!q.pomo,intent:'',trans:q.trans,session:[]};
-    if(q.tlen)n.tlen=q.tlen;if(act)n.pid=q.pid;else{n.pid=null;n.gid=pr.group||null}return n});
+    if(q.tlen)n.tlen=q.tlen;if(q.lock)n.lock=true;if(act)n.pid=q.pid;else{n.pid=null;n.gid=pr.group||null}return n});
   S.pebbles.push(...made);save();renderAll();
   toast('Copied the shape of '+dayName(src)+'. Click each pebble to choose a project.',()=>{S.pebbles=S.pebbles.filter(q=>!made.includes(q));save();renderAll();renderPanel()});
 }
@@ -1455,11 +1463,11 @@ track.addEventListener('pointerdown',e=>{
   const isTrans=el.classList.contains('trans');
   drag={id:el.dataset.id,el,isTrans,mode:e.target.closest('.pb-rz')?'resize':e.target.closest('.pb-rzl')?'resizeL':'move',x0:e.clientX,y0:e.clientY,lx:e.clientX,ly:e.clientY,moved:false,
     snapshot:S.pebbles.map(q=>[q.id,q.start,q.dur,q.trans,q.tlen]),armed:e.pointerType!=='touch',scrolling:false};
-  if(!isTrans&&multi.size>1&&multi.has(drag.id)&&drag.mode==='move')drag.group=[...multi];
-  else if(!isTrans&&drag.mode==='move'&&!e.altKey){const p=byId(drag.id),ps=dayPebbles(p.date);let i=ps.indexOf(p);const ch=[];while(ps[i+1]){const a=ps[i],b=ps[i+1];if(b.start===a.start+a.dur+transLen(a,b)){ch.push(b.id);i++}else break}if(ch.length){drag.group=[drag.id,...ch];drag.fromChain=true}}
+  if(!isTrans&&multi.size>1&&multi.has(drag.id)&&drag.mode==='move')drag.group=[...multi].filter(id=>id===drag.id||!(byId(id)||{}).lock);
+  else if(!isTrans&&drag.mode==='move'&&!e.altKey){const p=byId(drag.id),ps=dayPebbles(p.date);let i=ps.indexOf(p);const ch=[];while(ps[i+1]){const a=ps[i],b=ps[i+1];if(!b.lock&&b.start===a.start+a.dur+transLen(a,b)){ch.push(b.id);i++}else break}if(ch.length){drag.group=[drag.id,...ch];drag.fromChain=true}}
   if(!isTrans&&(drag.mode==='move'||drag.mode==='resizeL')&&(!drag.group||drag.fromChain)){const p=byId(drag.id),ps=dayPebbles(p.date),pv=ps[ps.indexOf(p)-1];if(pv){const tl=transLen(pv,p);if(tl>0&&pv.start+pv.dur+tl===p.start)drag.att=pv.id}}
   /* stretching a pebble carries everything joined to it (touching or linked by a transition) along with it */
-  if(!isTrans&&drag.mode==='resize'&&!e.altKey){const p=byId(drag.id),ps=dayPebbles(p.date);let i=ps.indexOf(p);const ch=[];while(ps[i+1]){const a=ps[i],b=ps[i+1];if(b.start===a.start+a.dur+transLen(a,b)){ch.push(b.id);i++}else break}if(ch.length)drag.chain=ch}
+  if(!isTrans&&drag.mode==='resize'&&!e.altKey){const p=byId(drag.id),ps=dayPebbles(p.date);let i=ps.indexOf(p);const ch=[];while(ps[i+1]){const a=ps[i],b=ps[i+1];if(!b.lock&&b.start===a.start+a.dur+transLen(a,b)){ch.push(b.id);i++}else break}if(ch.length)drag.chain=ch}
   {const er=el.getBoundingClientRect();drag.grabX=e.clientX-er.left;drag.grabY=e.clientY-er.top}
   drag.m0=(e.clientX-track.getBoundingClientRect().left)/ppm+R[0];drag.cx=e.clientX;drag.cy=e.clientY;kickEdge();
   try{el.setPointerCapture(e.pointerId)}catch(_){}
@@ -1519,13 +1527,13 @@ function dragMove(e){
     const lo=pv?pv.start+pv.dur+(drag.att===pv.id?0:transLen(pv,p)):0,hi=end-5;p.start=Math.max(lo,Math.min(hi,orig[1]+delta));p.dur=end-p.start;magnet(p,'resizeL');
     let st=orig[1]+raw,rb=0;if(st<lo){rb=rubber((lo-st)*ppm,24);st=lo}else if(st>hi){rb=-rubber((st-hi)*ppm,8);st=hi}
     drag.raw={start:st,dur:end-st,lo:rb,wo:rb}}
-  else{let hi=DAYMAX-orig[1];if(drag.chain){const ce=Math.max(...drag.chain.map(id=>{const o=drag.snapshot.find(x=>x[0]===id);return o[1]+o[2]}));hi=orig[2]+(DAYMAX-ce)}
+  else{let hi=DAYMAX-orig[1];{const L=dayPebbles(viewDate).find(q=>q.lock&&q!==p&&q.start>=orig[1]+orig[2]);if(L)hi=Math.min(hi,Math.max(orig[2],L.start-orig[1]-(drag.chain&&drag.chain.length?0:transLen(p,L))))}if(drag.chain){const ce=Math.max(...drag.chain.map(id=>{const o=drag.snapshot.find(x=>x[0]===id);return o[1]+o[2]}));hi=orig[2]+(DAYMAX-ce)}
     p.dur=Math.max(Math.ceil((orig[1]+5)/5)*5-orig[1],Math.min(hi,orig[2]+delta));
     let du=orig[2]+raw,wo=0;if(du<5){wo=-rubber((5-du)*ppm,8);du=5}else if(du>hi){wo=rubber((du-hi)*ppm,40);du=hi}
     drag.raw={start:orig[1],dur:du,lo:0,wo};
     if(drag.chain){let a=p;drag.chain.forEach(id=>{const b=byId(id);b.start=a.start+a.dur+transLen(a,b);a=b});
       /* anything further along keeps its place in the order: pushed on if the chain reaches it */
-      drag.snapshot.filter(o=>o[1]>orig[1]&&o[0]!==drag.id&&!drag.chain.includes(o[0])).map(o=>byId(o[0])).filter(q=>q&&q.date===viewDate).sort((x,y)=>x.start-y.start).forEach(q=>{const m=a.start+a.dur+transLen(a,q);if(q.start<m)q.start=m;a=q})}
+      drag.snapshot.filter(o=>o[1]>orig[1]&&o[0]!==drag.id&&!drag.chain.includes(o[0])).map(o=>byId(o[0])).filter(q=>q&&q.date===viewDate).sort((x,y)=>x.start-y.start).forEach(q=>{if(q.lock)return;const m=a.start+a.dur+transLen(a,q);if(q.start<m)q.start=m;a=q})}
     else magnet(p,'resize')}
   drag.killed=null;
   if(drag.att&&(drag.mode==='move'||drag.mode==='resizeL')){const pv=byId(drag.att),pe=pv.start+pv.dur,end=p.start+p.dur,gap=p.start-pe;
@@ -1886,6 +1894,7 @@ function renderPanel0(){
     <button class="meta mono when" id="pnTime" title="Change the time"></button>${!act&&!pr.placeholder&&runTxt(pr.id)?`<div class="meta mono runs">${runTxt(pr.id)}</div>`:''}
     <div class="lenrow"><button class="sq" id="pnMinus" aria-label="5 minutes shorter">−</button><input id="pnLen" type="number" min="5" step="5" inputmode="numeric" aria-label="Length in minutes"><span class="mono">min</span><button class="sq" id="pnPlus" aria-label="5 minutes longer">+</button>
       ${act?'':`<label class="switch"><input type="checkbox" id="pnPomo"${p.pomo?' checked':''}><span>Pomodoro</span></label>`}</div>
+    <div class="reprow lockrow"><label class="switch"><input type="checkbox" id="pnLock"${p.lock?' checked':''}><span>lock time</span></label></div>
     ${pr.placeholder?'':`<div class="reprow"><span class="mono">repeat</span><div class="seg" id="pnRep">${[['off','off'],['week','weekly'],['wd','weekdays']].map(([k,l])=>`<button data-rep="${k}"${repKind(p)===k?' class="on"':''}>${l}</button>`).join('')}</div></div>`}
     <div class="links"><button id="pnFinish" hidden>Finish now</button><button class="danger" id="pnDel">Remove from ${p.date===TODAY()?'today':'this day'}</button></div>
     ${!act&&!pr.placeholder?notesHTML('notes'):''}
@@ -1905,6 +1914,7 @@ function renderPanel0(){
   $('#pnPlus').onclick=()=>setLen(p,p.dur+5);
   $('#pnMinus').onclick=()=>setLen(p,p.dur-5);
   $('#pnLen').onchange=e=>{const v=parseInt(e.target.value,10);if(v>0)setLen(p,v);else updatePanelTime()};
+  {const lk=$('#pnLock');if(lk)lk.onchange=()=>{setLock(p,lk.checked)}}
   const rp=$('#pnRep');if(rp)rp.onclick=e=>{const b=e.target.closest('[data-rep]');if(!b)return;setRepeat(p,b.dataset.rep);save();renderTrack();renderDays();renderPanel();toast(b.dataset.rep==='off'?'No longer repeats':'Repeats '+(b.dataset.rep==='wd'?'every weekday':'every '+parseIso(p.date).toLocaleDateString(undefined,{weekday:'long'})))};
   const po=$('#pnPomo');if(po)po.onchange=e=>{p.pomo=e.target.checked;if(!pr.placeholder)pr.lastPomo=p.pomo;save();renderTrack();renderStatus()};
   $('#pnFinish').onclick=()=>finishNow(p);
@@ -1971,6 +1981,7 @@ function showTransPop(id){
 }
 function transOutside(e){if(!e.target.closest('.tpop'))hideTransPop()}
 function hideTransPop(){const x=track.querySelector('.tpop');if(x)x.remove();document.removeEventListener('pointerdown',transOutside,true)}
+function setLock(p,on){if(on)p.lock=true;else delete p.lock;{const r=p.rep&&(S.repeats||[]).find(x=>x.id===p.rep);if(r){if(on)r.lock=true;else delete r.lock}}save();renderTrack();toast(on?'Locked at '+fmt(p.start)+'. Other pebbles go around it.':'Unlocked')}
 function finishNow(p){
   /* finishing early: the pebble ends now, the gap up to the next 5-minute mark becomes its transition, and the rest of the day moves up */
   const keep=JSON.parse(JSON.stringify(dayPebbles(p.date)));
@@ -1979,7 +1990,7 @@ function finishNow(p){
   p.dur=Math.max(1,end-p.start);let moved=0;
   if(nx){const target=Math.ceil((end+base)/5)*5,gap=target-end;moved=Math.max(0,nx.start-target);
     if(gap>0){p.trans=(isAct(proj(p))||isAct(proj(nx)))?'on':true;p.tlen=gap}else{p.trans=false;delete p.tlen}
-    if(moved)ps.forEach(q=>{if(q.start>p.start)q.start-=moved})}
+    if(moved){const L=ps.find(q=>q.lock&&q.start>p.start);ps.forEach(q=>{if(q.start>p.start&&(!L||q.start<L.start))q.start-=moved})}}
   reflow(p.date);
   save();renderTrack();renderDays();updatePanelTime();prevActive=null;renderStatus();renderAlerts();if(!isAct(proj(p)))bigTick();
   toast(nx?`Finished early. ${proj(nx).name} now starts at ${fmt(nx.start)}.`:'Finished early.',()=>{keep.forEach(k=>{const i=S.pebbles.findIndex(q=>q.id===k.id);if(i>=0)S.pebbles[i]=k});save();renderTrack();renderDays();updatePanelTime();renderStatus()});
@@ -1987,10 +1998,10 @@ function finishNow(p){
 
 
 /* ---------- day templates: a saved layout, applied to an empty day ---------- */
-function tplFromDay(d,name){return {id:uid(),name,items:dayPebbles(d).map(q=>{const pr=proj(q),o={start:q.start,dur:q.dur,trans:q.trans};if(q.pomo)o.pomo=true;if(q.tlen)o.tlen=q.tlen;
+function tplFromDay(d,name){return {id:uid(),name,items:dayPebbles(d).map(q=>{const pr=proj(q),o={start:q.start,dur:q.dur,trans:q.trans};if(q.pomo)o.pomo=true;if(q.tlen)o.tlen=q.tlen;if(q.lock)o.lock=true;
   if(isAct(pr))o.pid=q.pid;else o.gid=pr.group||null;return o})}}
 function applyTemplate(t){
-  const made=t.items.map(i=>{const n={id:uid(),date:viewDate,start:i.start,dur:i.dur,pomo:!!i.pomo,intent:'',trans:i.trans===undefined?true:i.trans,session:[]};if(i.tlen)n.tlen=i.tlen;
+  const made=t.items.map(i=>{const n={id:uid(),date:viewDate,start:i.start,dur:i.dur,pomo:!!i.pomo,intent:'',trans:i.trans===undefined?true:i.trans,session:[]};if(i.tlen)n.tlen=i.tlen;if(i.lock)n.lock=true;
     if(i.pid&&S.projects[i.pid])n.pid=i.pid;else{n.pid=null;n.gid=i.gid&&S.groups.some(g=>g.id===i.gid)?i.gid:null}return n});
   S.pebbles=S.pebbles.filter(q=>q.date!==viewDate).concat(made);save();renderAll();
   toast(t.name+' applied to '+dayName(viewDate),()=>{S.pebbles=S.pebbles.filter(q=>!made.includes(q));save();renderAll()});
@@ -2482,6 +2493,7 @@ document.addEventListener('keydown',e=>{
   if(mod||e.altKey||typing()||drag)return;
   const p=sel&&sel.id?byId(sel.id):null;
   {const hp=!p&&hovId&&!multi.size?byId(hovId):null;if(hp&&hp.date===viewDate){
+    if(e.key==='l'||e.key==='L'){e.preventDefault();setLock(hp,!hp.lock);if(sel&&sel.id===hp.id)renderPanel();return}
     if(e.key==='d'||e.key==='D'){e.preventDefault();if(hp.pid){const ps=dayPebbles(hp.date),i=ps.indexOf(hp);let a=hp,j=i;while(ps[j+1]&&ps[j+1].start===a.start+a.dur+transLen(a,ps[j+1])){a=ps[++j]}
         addPebble(proj(hp).kind,hp.start+hp.dur,{pid:hp.pid,nofit:true});const np=S.pebbles[S.pebbles.length-1];np.pomo=hp.pomo;np.dur=hp.dur;np.trans=hp.trans;reflow(hp.date);save();renderTrack();renderDays()}return}
     if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();hovId=null;hidePbHov();removeGroup([hp.id]);return}}}
@@ -2500,7 +2512,7 @@ document.addEventListener('keydown',e=>{
   if(e.key===']'){goDay(shift(viewDate,1));return}
   if(k==='c'){toggleDoc(!docOpen);return}
 });
-const HELP_ROWS=[['N','new pebble'],['← →','scroll the timeline'],['← →','move the selected pebble 5 min'],['shift ← →','change the selected pebble’s length'],['− =','zoom out / in'],['ctrl scroll','scroll the timeline'],['alt scroll','zoom'],['hover + D','duplicate a pebble'],['hover + delete','remove a pebble'],['delete','remove the selected pebble'],['T','today'],['[ ]','previous / next day'],['C','channels'],['ctrl Z','undo'],['ctrl shift Z','redo'],['?','shortcuts'],['esc','close'],
+const HELP_ROWS=[['N','new pebble'],['← →','scroll the timeline'],['← →','move the selected pebble 5 min'],['shift ← →','change the selected pebble’s length'],['− =','zoom out / in'],['ctrl scroll','scroll the timeline'],['alt scroll','zoom'],['hover + D','duplicate a pebble'],['hover + L','lock / unlock a pebble’s time'],['hover + delete','remove a pebble'],['delete','remove the selected pebble'],['T','today'],['[ ]','previous / next day'],['C','channels'],['ctrl Z','undo'],['ctrl shift Z','redo'],['?','shortcuts'],['esc','close'],
   ['drag off the timeline','remove a pebble'],['drag onto a day','move it to that day'],['drag either edge','change length'],['alt + drag','move just that pebble'],['drag a task onto the timeline','book it'],['type “30m 2pm” in the picker','set length and time'],['+ between pebbles','add a transition'],['click a transition','change or remove it'],['click the time','type exact times'],['click the title','change project'],['enter in a note','new note'],['shift enter','new line in a note']];
 function toggleHelp(){
   const h0=document.querySelector('.help');if(h0){h0.remove();return}

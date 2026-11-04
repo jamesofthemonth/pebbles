@@ -37,7 +37,7 @@ State object `S` (saved as JSON in `localStorage['pebble-planner-v1']`, mirrored
 
 ```
 { v, savedAt, projects:{id:{id,kind,name,group,tasks:[{id,text,done,doneAt,due,rs}],dflt,lastPomo}},
-  pebbles:[{id,pid,gid,date,start,dur,pomo,intent,trans,tlen,session:[taskIds],rep,plan}],
+  pebbles:[{id,pid,gid,date,start,dur,pomo,intent,trans,tlen,session:[taskIds],rep,plan,lock}],
   groups:[{id,name,color}], types:[{id,name,sty,rest,dur}], notes:[{id,date,text,pid,at,origin}],
   templates:[...], repeats:[{id,pid,start,dur,days,from,pomo,trans,made:[dates]}],
   settings:{...}, last:{}, lastG:{}, openCards:[], histMonths:[] }
@@ -79,6 +79,9 @@ State object `S` (saved as JSON in `localStorage['pebble-planner-v1']`, mirrored
 - Left edge resizes that pebble only (end fixed), stopping at its neighbour.
 - Box-select: drag on empty timeline (mouse) → rounded marquee; shift-click toggles. Move the selection as a group; Delete removes it; Esc clears.
 - The **+** to add a transition appears only when hovering just **above** the joint between touching pebbles.
+
+### Locked pebbles
+- `lock:true` (drawer → lock time, or hover + L; padlock mark after the time). Other pebbles never push a locked one: `reflow` flows anything that would run into it to just after it (plus transitions). Chains stop at a locked pebble; stretching stops at it; group moves leave it out unless it's the one grabbed; finishing early pulls the day up only as far as the next lock. The locked pebble itself can still be moved and resized directly. Carried through repeats, templates and copy-day.
 
 ### Transitions
 - Default length set by settings (5 min, or 10 min after pebbles ≥60 min) but **frozen when first created** (`tlen`), so stretching a pebble never changes it.
@@ -122,4 +125,4 @@ Known gap: the sync merge skips merging while you're typing or mid-drag (that on
 
 ## Tests
 
-`tests/harness.py` builds a test copy of `index.html` with a fake clock (`window.__setNow`), a fake account database in localStorage and fake calendar events; `tests/run.py` is the simulated five-week run (Mon studio day, template day, due-task alerts, midnight rollover, copy/clear day, month-later pruning, update safety, phone width). Feature tests: `t45` (chip pop, late nights, edges, chapter marks), `t46` (elastic transitions, drawer, wrap tag), `t47` (stretch chains), `t48` (move chains, transition pop), `t52` (frozen transitions, Alt, wheel, two-device merge), `t56` (drag to book, review, repeats, quick typing, free-time booking), `t57` (fresh start), `t58_standalone` (offline worker, folder backup, export, mini timer), `t59_pip` (mini timer screenshot), `t60_gcal_link` (calendar via Apps Script link, faked), `t61_update` (update button appears, click loads the new version, plan kept). Run the full set before publishing.
+`tests/harness.py` builds a test copy of `index.html` with a fake clock (`window.__setNow`), a fake account database in localStorage and fake calendar events; `tests/run.py` is the simulated five-week run (Mon studio day, template day, due-task alerts, midnight rollover, copy/clear day, month-later pruning, update safety, phone width). Feature tests: `t45` (chip pop, late nights, edges, chapter marks), `t46` (elastic transitions, drawer, wrap tag), `t47` (stretch chains), `t48` (move chains, transition pop), `t52` (frozen transitions, Alt, wheel, two-device merge), `t56` (drag to book, review, repeats, quick typing, free-time booking), `t57` (fresh start), `t58_standalone` (offline worker, folder backup, export, mini timer), `t59_pip` (mini timer screenshot), `t60_gcal_link` (calendar via Apps Script link, faked), `t61_update` (update button appears, click loads the new version, plan kept), `t62` (drop fits the gap, grid snapping, phase icon), `t63_lock` (locked pebbles). Run the full set before publishing.
