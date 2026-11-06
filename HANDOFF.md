@@ -81,7 +81,7 @@ State object `S` (saved as JSON in `localStorage['pebble-planner-v1']`, mirrored
 - The **+** to add a transition appears only when hovering just **above** the joint between touching pebbles.
 
 ### Locked pebbles
-- `lock:true` (drawer → lock time, or hover + L; padlock mark after the time). Other pebbles never push a locked one: `reflow` flows anything that would run into it to just after it (plus transitions). Chains stop at a locked pebble; stretching stops at it; group moves leave it out unless it's the one grabbed; finishing early pulls the day up only as far as the next lock. The locked pebble itself can still be moved and resized directly. Carried through repeats, templates and copy-day.
+- `lock:true` (drawer → lock time, or hover + L; padlock mark after the time). Other pebbles never push a locked one: `reflow` moves anything that would land on it to one side: **before** it if most of the pebble is over the lock's first half and there's room after the previous pebble, otherwise **after** it (plus transitions). So a joined chain dropped across a lock splits around it. Chains stop at a locked pebble; stretching stops at it; group moves leave it out unless it's the one grabbed; finishing early pulls the day up only as far as the next lock. The locked pebble itself can still be moved and resized directly. Carried through repeats, templates and copy-day.
 
 ### Transitions
 - Default length set by settings (5 min, or 10 min after pebbles ≥60 min) but **frozen when first created** (`tlen`), so stretching a pebble never changes it.

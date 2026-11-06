@@ -34,6 +34,16 @@ async def main():
   await setup(pg,[P('L','pc',660,60,lock=True),P('c','pb',720,30)])
   await drag(pg,'L','mid',30,ppm);m=mine(await S.state(pg));S.check(m['L']==(690,60) and m['c'][0]>=750,'a locked pebble can still be moved itself, and pushes others',m)
   await drag(pg,'L','end',-15,ppm);m=mine(await S.state(pg));S.check(m['L']==(690,45),'…and its end can still be changed',m)
+  # dragging two joined pebbles onto a lock: one lands before it, one after
+  await setup(pg,[P('a','pa',540,60),P('b','pb',600,60),P('L','pc',720,60,lock=True)])
+  await drag(pg,'a','mid',75,ppm);m=mine(await S.state(pg))
+  S.check(m['L']==(720,60) and m['a'][0]+60<=720 and m['b'][0]>=780,'joined pair dropped on a lock: first fits before it, second after',m)
+  await setup(pg,[P('a','pa',540,60),P('b','pb',600,60),P('L','pc',720,60,lock=True)])
+  await drag(pg,'a','mid',150,ppm);m=mine(await S.state(pg))
+  S.check(m['L']==(720,60) and m['a']==(660,60) and m['b'][0]>=780,'first pebble mostly over the lock\'s first half: tucked in before it',m)
+  await setup(pg,[P('a','pa',540,60),P('b','pb',600,60),P('L','pc',720,60,lock=True)])
+  await drag(pg,'a','mid',200,ppm);m=mine(await S.state(pg))
+  S.check(m['L']==(720,60) and m['a'][0]>=780 and m['b'][0]>=m['a'][0]+60,'pair dropped mostly past the lock: both go after',m)
   # finish early: pebbles after the lock stay put
   await setup(pg,[P('f','pa',480,60,trans=True),P('g','pb',550,30),P('L','pc',600,60,lock=True),P('h','pb',660,30)])
   await S.at(pg,'2026-11-02T08:20:00+11:00');await pg.click('#finishNow');await pg.wait_for_timeout(800);m=mine(await S.state(pg))

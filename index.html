@@ -1014,7 +1014,11 @@ function reflow(date){const ps=dayPebbles(date);for(let i=1;i<ps.length;i++){con
   const locks=ps.filter(q=>q.lock);let last=null;const later=(a,b)=>!a||b.start+b.dur>a.start+a.dur?b:a;
   for(const q of ps){if(q.lock){last=later(last,q);continue}
     if(last){const min=last.start+last.dur+transLen(last,q);if(q.start<min)q.start=min}
-    for(const L of locks){if(L.start+L.dur<=q.start)continue;if(q.start+q.dur+transLen(q,L)<=L.start)break;q.start=L.start+L.dur+transLen(L,q)}
+    /* a pebble landing on a lock goes to whichever side most of it is on: before it if there's room, otherwise after */
+    for(const L of locks){if(L.start+L.dur<=q.start)continue;const t=transLen(q,L);if(q.start+q.dur+t<=L.start)break;
+      const back=L.start-t-q.dur,minS=last?last.start+last.dur+transLen(last,q):0;
+      if(q.start+q.dur/2<L.start+L.dur/2&&back>=Math.max(0,minS)){q.start=back;break}
+      q.start=L.start+L.dur+transLen(L,q)}
     last=later(last,q)}}
 function range(){let lo=ST().dayStart*60,hi=ST().dayEnd*60;dayPebbles(viewDate).forEach(p=>{lo=Math.min(lo,p.start-30);hi=Math.max(hi,p.start+p.dur+60)});if(isLive(viewDate)){const n=nowFor();lo=Math.min(lo,n);hi=Math.max(hi,n+30)}return [Math.floor(lo/60)*60,Math.ceil(hi/60)*60]}
 const LATE=300,DAYMAX=1440+LATE;/* a day can run on until 5am the next morning */
