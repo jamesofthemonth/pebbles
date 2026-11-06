@@ -68,7 +68,8 @@ State object `S` (saved as JSON in `localStorage['pebble-planner-v1']`, mirrored
 - Picker accepts quick text: `jon call 45m 4pm` → name + length + start (simple parser, no AI). A preview line shows the parsed time/length.
 - New pebbles remember each project's last Pomodoro setting.
 - Gaps under 10 minutes close themselves (magnet). No slivers.
-- A **new** pebble dropped into a gap (from the pop-out, an activity chip or a dragged task) shrinks in 5-minute steps to fit the gap, including its transition, instead of pushing later pebbles. If only 5+ minutes are free it fills that with no transition; under 5, it falls back to pushing. The drop outline shows the fitted size. Existing pebbles being moved keep the chain/push rules below.
+- A **new** pebble dropped into a gap (from the pop-out, an activity chip or a dragged task) shrinks in 5-minute steps to fit the gap, including its transition, instead of pushing later pebbles. If only 5+ minutes are free it fills that with no transition; under 5, it falls back to pushing. The drop outline shows the fitted size.
+- The same applies to an **existing pebble moved on its own** (no joined chain, or Alt-drag): if it lands in a gap shorter than it, it shrinks to fit (outline and held pebble show the fitted length); moved on into open space it gets its full length back. Joined chains and selected groups keep the push/split rules below.
 
 ### Dragging
 - Pebbles follow the pointer 1:1; a dashed outline shows the snapped landing spot. Snapping is to the **timeline's** 5-minute marks (start for moves and left-edge resizes, end for right-edge stretches), never to 5-minute steps from where the pebble started, so off-grid pebbles (e.g. after finish) get pulled back onto the grid; the dragged pebble shrinks to ~84% (around the grab point) so the outline is visible. Shrink only applies to moving, not resizing.

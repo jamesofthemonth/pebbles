@@ -23,7 +23,7 @@ async def main():
   # alt-drag B alone
   B=pg.locator(".pebble[data-id='b']");bb=await B.bounding_box();x=bb['x']+bb['width']/2
   await pg.keyboard.down('Alt');await pg.mouse.move(x,bb['y']+30);await pg.mouse.down();await pg.mouse.move(x+20*2.8,bb['y']+30,steps=8);await pg.mouse.up();await pg.keyboard.up('Alt');await pg.wait_for_timeout(600)
-  g=await get();S.check(g['b'][0]==625 and g['c'][0]==660,'Alt-drag moves B on its own; C is only pushed because B reached it',g)
+  g=await get();S.check(g['b'][0]==625 and g['b'][1]==10 and g['c'][0]==640,'Alt-drag moves B on its own; it shrinks to fit before C instead of pushing it',g)
   # wheel scroll
   sl0=await pg.evaluate("document.getElementById('scroller').scrollLeft");await pg.mouse.move(640,(await A.bounding_box())['y']+30);await pg.mouse.wheel(0,300);await pg.wait_for_timeout(300);s_plain=await pg.evaluate("document.getElementById('scroller').scrollLeft");await pg.keyboard.down('Control');await pg.mouse.wheel(0,300);await pg.keyboard.up('Control');await pg.wait_for_timeout(300)
   sl1=await pg.evaluate("document.getElementById('scroller').scrollLeft");S.check(s_plain==sl0 and sl1!=sl0,'plain wheel leaves the timeline alone; ctrl + wheel scrolls it sideways',(sl0,s_plain,sl1))

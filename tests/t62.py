@@ -36,6 +36,14 @@ async def main():
   ib=await pg.locator('.chippop button',has_text='Gamma').bounding_box()
   await pg.mouse.move(ib['x']+20,ib['y']+10);await pg.mouse.down();await pg.mouse.move(pa['x']+pa['width']+14,ty,steps=14);await pg.wait_for_timeout(150);await pg.mouse.up();await pg.wait_for_timeout(800)
   m=mine(await S.state(pg));S.check(m==[('a',540,60),(m[1][0],600,5),('b',605,60)],'5 min gap gets a 5 min pebble, nothing moves',m)
+  # --- an existing pebble moved into a smaller gap conforms to it, and gets its length back when moved out
+  await setup(pg,[{'id':'a','pid':'pa','date':D,'start':540,'dur':60,'trans':False,'session':[]},{'id':'b','pid':'pb','date':D,'start':645,'dur':60,'trans':False,'session':[]},{'id':'c','pid':'pc','date':D,'start':840,'dur':60,'trans':False,'session':[]}])
+  cb=await pg.locator('.pebble[data-id="c"]').bounding_box();pw=cb['width']/60;cx=cb['x']+10;cy=cb['y']+cb['height']/2
+  await pg.mouse.move(cx,cy);await pg.mouse.down();await pg.mouse.move(cx-240*pw,cy,steps=14);await pg.wait_for_timeout(150);await pg.mouse.up();await pg.wait_for_timeout(700)
+  m=mine(await S.state(pg));S.check(m==[('a',540,60),('c',600,45),('b',645,60)],'moved pebble shrinks to the 45 min gap, nothing pushed',m)
+  await setup(pg,[{'id':'a','pid':'pa','date':D,'start':540,'dur':60,'trans':False,'session':[]},{'id':'b','pid':'pb','date':D,'start':645,'dur':60,'trans':False,'session':[]},{'id':'c','pid':'pc','date':D,'start':840,'dur':60,'trans':False,'session':[]}])
+  await pg.mouse.move(cx,cy);await pg.mouse.down();await pg.mouse.move(cx-240*pw,cy,steps=10);await pg.mouse.move(cx+30*pw,cy,steps=10);await pg.wait_for_timeout(150);await pg.mouse.up();await pg.wait_for_timeout(700)
+  m=mine(await S.state(pg));S.check([x for x in m if x[0]=='c'][0][2]==60,'passing over a gap and moving on keeps its full length',m)
   # --- drag snaps to the timeline's marks, not to steps from an off-grid start
   await setup(pg,[{'id':'x','pid':'pa','date':D,'start':633,'dur':27,'trans':False,'session':[]}])
   xb=await pg.locator('.pebble[data-id="x"]').bounding_box();pw=xb['width']/27

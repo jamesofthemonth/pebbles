@@ -29,7 +29,7 @@ async def main():
   S.check(col[0]!=col[1],'selected activity keeps readable colours',col)
   await pg.keyboard.press('Escape');await pg.mouse.click(5,5)
   # late night: pebble 23:00-01:00
-  await pg.evaluate("""(()=>{const st=JSON.parse(localStorage.getItem('pebble-planner-v1'));const pid=Object.keys(st.projects).find(k=>st.projects[k].kind==='work');st.pebbles=[{id:'late',pid,date:'2026-11-02',start:23*60,dur:120,pomo:false,intent:'',trans:true,session:[]}];st.savedAt=Date.now()+9000;localStorage.setItem('pebble-planner-v1',JSON.stringify(st));const m=JSON.parse(localStorage.getItem('__mdb'));m['data/users/james/state']={state:st,dev:'x',at:st.savedAt};localStorage.setItem('__mdb',JSON.stringify(m))})()""")
+  await pg.wait_for_timeout(1200);await pg.evaluate("""(()=>{const st=JSON.parse(localStorage.getItem('pebble-planner-v1'));const pid=Object.keys(st.projects).find(k=>st.projects[k].kind==='work');st.pebbles=[{id:'late',pid,date:'2026-11-02',start:23*60,dur:120,pomo:false,intent:'',trans:true,session:[]}];st.savedAt=Date.now()+9000;localStorage.setItem('pebble-planner-v1',JSON.stringify(st));const m=JSON.parse(localStorage.getItem('__mdb'));m['data/users/james/state']={state:st,dev:'x',at:st.savedAt};localStorage.setItem('__mdb',JSON.stringify(m))})()""")
   await S.at(pg,'2026-11-03T00:30:00+11:00')
   nm=await pg.inner_text('#nowName');S.check(nm!='Nothing else planned today' and 'Free' not in nm,'at 12:30am the late pebble is still running',nm)
   dsel=await pg.locator('#days .day.on').get_attribute('data-d');S.check(dsel=='2026-11-02','view stays on Monday after midnight',dsel)

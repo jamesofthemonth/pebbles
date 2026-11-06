@@ -1545,6 +1545,8 @@ function dragMove(e){
       if(drag.mode==='resizeL')p.dur=end-p.start}}
   else if(drag.mode==='move'){const prev=dayPebbles(viewDate).filter(q=>q!==p&&q.start<p.start).pop();
     if(prev&&transLen(prev,p)>0){const pe=prev.start+prev.dur,tl=transLen(prev,p);if(p.start<pe+tl&&p.start>pe-Math.min(30,p.dur/2)){prev.trans=false;drag.killed=prev.id}}}
+  /* a pebble moved on its own into a gap shrinks to fit it, like a new drop (back to full length if moved out again) */
+  if(drag.mode==='move'){p.trans=orig[3];const f=fitDrop(p.start,orig[2],isAct(proj(p)),p);if(f.dur<orig[2]){p.start=f.start;p.dur=f.dur;if(f.noT)p.trans=false;if(drag.raw)drag.raw.dur=f.dur}else p.dur=orig[2]}
   drag.el.classList.toggle('over-trans',!!drag.killed);
   reflow(viewDate);renderTrack();applyRaw();showTip(p,orig);
 }
@@ -1636,9 +1638,9 @@ function dropStart(x,y,grab){const r=scroller.getBoundingClientRect();if(x<r.lef
 function dropPreview(start,dur){let sl=track.querySelector('.slot[data-for="drop"]');if(start==null){if(sl)sl.remove();return}
   if(!sl){sl=document.createElement('div');sl.className='slot';sl.dataset.for='drop';track.appendChild(sl)}sl.style.left=((start-R[0])*ppm)+'px';sl.style.width=(dur*ppm)+'px'}
 /* a new pebble dropped into a gap shrinks to fit it (in 5-minute steps) instead of pushing the day along */
-function fitDrop(st,dur,act){const ps=dayPebbles(viewDate),stt=ST(),tl=(a,d,nxAct)=>(a.trans===false||((act||nxAct)&&a.trans!=='on'))?0:(a.tlen||(d>=stt.tThresh?stt.tLong:stt.tShort));
+function fitDrop(st,dur,act,self){const ps=dayPebbles(viewDate).filter(q=>q!==self),stt=ST(),tl=(a,d,nxAct)=>(a.trans===false||((act||nxAct)&&a.trans!=='on'))?0:(a.tlen||(d>=stt.tThresh?stt.tLong:stt.tShort));
   const pv=ps.filter(q=>q.start<=st).pop();if(pv){const pe=pv.start+pv.dur+(pv.trans===false||((isAct(proj(pv))||act)&&pv.trans!=='on')?0:(pv.tlen||(pv.dur>=stt.tThresh?stt.tLong:stt.tShort)));if(st<pe+GAPMIN)st=pe}
-  const nx=ps.find(q=>q.start>=st);if(!nx)return {start:st,dur};const na=isAct(proj(nx)),myT=d=>(!stt.autoTrans||act||na)?0:(d>=stt.tThresh?stt.tLong:stt.tShort);
+  const nx=ps.find(q=>q.start>=st);if(!nx)return {start:st,dur};const na=isAct(proj(nx)),myT=d=>self?((self.trans===false||((act||na)&&self.trans!=='on'))?0:(self.tlen||(d>=stt.tThresh?stt.tLong:stt.tShort))):(!stt.autoTrans||act||na)?0:(d>=stt.tThresh?stt.tLong:stt.tShort);
   if(st+dur+myT(dur)<=nx.start)return {start:st,dur};
   for(let d=dur-5;d>=5;d-=5)if(st+d+myT(d)<=nx.start)return {start:st,dur:d};
   const room=Math.floor((nx.start-st)/5)*5;if(room>=5)return {start:st,dur:room,noT:true};
